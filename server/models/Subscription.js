@@ -1,0 +1,93 @@
+const mongoose = require("mongoose");
+
+const SubscriptionSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    name: {
+      type: String,
+    },
+    email: {
+      type: String,
+      match: [
+        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+        "Please add a valid email",
+      ],
+    },
+    phone: {
+      type: String,
+    },
+    plan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubscriptionPlan",
+    },
+    currentTier: {
+      type: String,
+    },
+    startDate: {
+      type: Date,
+      default: Date.now,
+    },
+    endDate: {
+      type: Date,
+    },
+    nextRenewalDate: {
+      type: Date,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["paid", "pending", "failed", "cancelled"],
+      default: "pending",
+    },
+    autoRenew: {
+      type: Boolean,
+      default: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    paymentHistory: [
+      {
+        amount: {
+          type: Number,
+        },
+        status: {
+          type: String,
+          enum: ["successful", "failed", "pending", "refunded"],
+        },
+        paymentMethod: {
+          type: String,
+        },
+        transactionId: {
+          type: String,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Virtual for checking if subscription is expired
+SubscriptionSchema.virtual("isExpired").get(function () {
+  return new Date() > this.endDate;
+});
+
+// Virtual for days remaining in subscription
+SubscriptionSchema.virtual("daysRemaining").get(function () {
+  const today = new Date();
+  const end = new Date(this.endDate);
+  const diffTime = Math.abs(end - today);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+});
+
+module.exports = mongoose.model("Subscription", SubscriptionSchema);
