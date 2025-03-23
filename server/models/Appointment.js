@@ -53,6 +53,21 @@ const AppointmentSchema = new mongoose.Schema(
         default: "card",
       },
     },
+    // Adding address field for appointment location
+    address: {
+      type: String,
+    },
+    // Adding documents field for uploading medical records
+    documents: {
+      type: [String],
+      default: [],
+    },
+    // Adding consent field for patient consent
+    consent: {
+      type: Boolean,
+      required: [true, "Patient consent is required"],
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -67,7 +82,12 @@ AppointmentSchema.index({ therapistId: 1, date: 1 });
 
 // Prevent overlapping appointments for the same therapist
 AppointmentSchema.pre("save", async function (next) {
-  if (this.isModified("date") || this.isModified("startTime") || this.isModified("endTime") || this.isNew) {
+  if (
+    this.isModified("date") ||
+    this.isModified("startTime") ||
+    this.isModified("endTime") ||
+    this.isNew
+  ) {
     const existingAppointment = await this.constructor.findOne({
       therapistId: this.therapistId,
       date: this.date,
@@ -93,7 +113,9 @@ AppointmentSchema.pre("save", async function (next) {
     });
 
     if (existingAppointment) {
-      const error = new Error("Therapist already has an appointment at this time");
+      const error = new Error(
+        "Therapist already has an appointment at this time"
+      );
       error.statusCode = 400;
       return next(error);
     }

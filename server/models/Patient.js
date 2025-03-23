@@ -26,6 +26,14 @@ const PatientSchema = new mongoose.Schema(
       enum: ["male", "female", "other"],
       required: [true, "Please specify gender"],
     },
+    photo: {
+      url: String,
+      public_id: String,
+    },
+    birthCertificate: {
+      url: String,
+      public_id: String,
+    },
     medicalHistory: {
       type: String,
     },
@@ -50,6 +58,55 @@ const PatientSchema = new mongoose.Schema(
         required: [true, "Please add emergency contact phone"],
       },
     },
+    parentInfo: {
+      name: {
+        type: String,
+        required: [true, "Please add parent/guardian name"],
+      },
+      phone: {
+        type: String,
+        required: [true, "Please add parent/guardian phone"],
+      },
+      email: {
+        type: String,
+        match: [
+          /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+          "Please add a valid email",
+        ],
+      },
+      photo: {
+        url: String,
+        public_id: String,
+      },
+      relationship: {
+        type: String,
+        enum: ["Father", "Mother", "Guardian", "Other"],
+        default: "Guardian",
+      },
+      address: {
+        type: String,
+        trim: true,
+      },
+    },
+    aadharCard: {
+      url: String,
+      public_id: String,
+    },
+    medicalRecords: [
+      {
+        url: String,
+        public_id: String,
+        name: String,
+        uploadDate: {
+          type: Date,
+          default: Date.now,
+        },
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
     therapistNotes: [
       {
         therapistId: {
@@ -86,10 +143,17 @@ const PatientSchema = new mongoose.Schema(
           ref: "User",
           required: true,
         },
-        documents: {
-          type: [String],
-          default: [],
-        },
+        documents: [
+          {
+            url: String,
+            public_id: String,
+            name: String,
+            uploadDate: {
+              type: Date,
+              default: Date.now,
+            },
+          },
+        ],
       },
     ],
   },

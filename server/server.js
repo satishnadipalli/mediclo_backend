@@ -1,104 +1,142 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const helmet = require("helmet");
 const morgan = require("morgan");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const mongoSanitize = require("express-mongo-sanitize");
+const helmet = require("helmet");
+const xss = require("xss-clean");
+const hpp = require("hpp");
+const rateLimit = require("express-rate-limit");
+const fileUpload = require("express-fileupload");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
+
 // Import routes
 const productRoutes = require("./routes/productRoutes");
+const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const courseRoutes = require("./routes/courseRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
+const webinarRoutes = require("./routes/webinarRoutes");
+const appointmentRoutes = require("./routes/appointmentRoutes");
+const patientRoutes = require("./routes/patientRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
+const toyRoutes = require("./routes/toyRoutes");
+const borrowerRoutes = require("./routes/borrowerRoutes");
+// Add missing route imports
+const serviceRoutes = require("./routes/serviceRoutes");
+const therapistRoutes = require("./routes/therapistRoutes");
+const jobRoutes = require("./routes/jobRoutes");
+const jobApplicationRoutes = require("./routes/jobApplicationRoutes");
+const blogRoutes = require("./routes/blogRoutes");
+const feedbackRoutes = require("./routes/feedbackRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const orderRoutes = require("./routes/orderRoutes");
-const discountRoutes = require("./routes/discountRoutes");
-const transactionRoutes = require("./routes/transactionRoutes");
 const shippingRoutes = require("./routes/shippingRoutes");
-const uploadRoutes = require("./routes/uploadRoutes");
-const courseRoutes = require("./routes/courseRoutes");
-const webinarRoutes = require("./routes/webinarRoutes");
-const feedbackRoutes = require("./routes/feedbackRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const transactionRoutes = require("./routes/transactionRoutes");
+const discountRoutes = require("./routes/discountRoutes");
+// Add new routes
+const galleryRoutes = require("./routes/galleryRoutes");
+const diseaseRoutes = require("./routes/diseaseRoutes");
 
-// Load environment variables
-dotenv.config();
+// Load env vars
+dotenv.config({ path: "./config/config.env" });
 
 // Connect to database
 connectDB();
 
-// Initialize Express
 const app = express();
 
-// Middleware
-app.use(cors());
+// Body parser with increased limits for handling file uploads
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// Cookie parser
+app.use(cookieParser());
+
+
+// Dev logging middleware
+if (process.env.NODE_ENV === "development") {
+  app.use(morgan("dev"));
+}
+
+// Sanitize data
+app.use(mongoSanitize());
+
+// Set security headers
 app.use(helmet());
-app.use(express.json());
-app.use(morgan("dev"));
+
+// Prevent XSS attacks
+app.use(xss());
+
+// Prevent http param pollution
+app.use(hpp());
+
+// Enable CORS
+app.use(cors());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 mins
+  max: 100,
+});
+app.use(limiter);
 
 // Test API
 app.get("/api/test", (req, res) => {
   res.status(200).json({ success: true, message: "API is working!" });
 });
 
-
-
-// Mount routers
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/users", require("./routes/userRoutes"));
-app.use("/api/patients", require("./routes/patientRoutes"));
-app.use(
-  "/api/therapists",
-  require("./routes/therapistRoutes")
-);
-app.use("/api/services", require("./routes/serviceRoutes"));
-app.use("/api/blogs", require("./routes/blogRoutes"));
+// Mount routes
 app.use("/api/products", productRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/courses", courseRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/webinars", webinarRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/patients", patientRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/toys", toyRoutes);
+app.use("/api/borrowers", borrowerRoutes);
+// Mount missing routes
+app.use("/api/services", serviceRoutes);
+app.use("/api/therapists", therapistRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/job-applications", jobApplicationRoutes);
+app.use("/api/blogs", blogRoutes);
+app.use("/api/feedback", feedbackRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/orders", orderRoutes);
-app.use("/api/discounts", discountRoutes);
-app.use("/api/transactions", transactionRoutes);
 app.use("/api/shipping", shippingRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/jobs", require("./routes/jobRoutes"));
-app.use(
-  "/api/applications",
-  require("./routes/jobApplicationRoutes")
-);
-app.use("/api/courses", courseRoutes);
-app.use("/api/webinars", webinarRoutes);
-app.use("/api/feedback", feedbackRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
-
-// Comment out or remove routes that don't exist yet
-// app.use("/api/appointments", require("./routes/appointmentRoutes"));
-// app.use("/api/memberships", require("./routes/membershipRoutes"));
-// app.use("/api/toys", require("./routes/toyRoutes"));
-// app.use("/api/testimonials", require("./routes/testimonialRoutes"));
+app.use("/api/transactions", transactionRoutes);
+app.use("/api/discounts", discountRoutes);
+// Mount new routes
+app.use("/api/gallery", galleryRoutes);
+app.use("/api/diseases", diseaseRoutes);
 
 // Root route
 app.get("/", (req, res) => {
-  res.json({ message: "Welcome to 8Senses Pediatric Therapy API" });
+  res.send("API is running...");
 });
 
-// Error handling middleware
+// Error handler
 app.use(errorHandler);
 
-// Start server
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+const server = app.listen(
+  PORT,
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`)
+);
+
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (err, promise) => {
+  console.log(`Error: ${err.message}`);
+  // Close server & exit process
+  server.close(() => process.exit(1));
 });
-
-// Handle errors when the port is busy
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use.`);
-    process.exit(1);
-  } else {
-    console.error('Server error:', err);
-  }
-});
-
-
-

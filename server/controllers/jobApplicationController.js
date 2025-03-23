@@ -5,10 +5,9 @@ const { cloudinary } = require("../config/cloudinary");
 
 // Validation rules
 exports.createApplicationValidation = [
-  check("jobId", "Job ID is required").isMongoId(),
-  check("coverLetter", "Cover letter is required").notEmpty(),
-  check("phone", "Phone number is required").notEmpty(),
+  check("resumeUrl", "Resume URL is required").notEmpty().isURL(),
 ];
+
 
 exports.updateApplicationStatusValidation = [
   check("status", "Status must be valid").isIn([
@@ -212,11 +211,11 @@ exports.createApplication = async (req, res, next) => {
       });
     }
 
-    // Check if resume was uploaded
-    if (!req.file) {
+    // Check if resumeUrl was provided
+    if (!req.body.resumeUrl) {
       return res.status(400).json({
         success: false,
-        error: "Resume is required",
+        error: "Resume URL is required",
       });
     }
 
@@ -227,12 +226,11 @@ exports.createApplication = async (req, res, next) => {
         userId: req.user.id,
         name: `${req.user.firstName} ${req.user.lastName}`,
         email: req.user.email,
-        phone: req.body.phone,
+        phone: req.body.applicant.phone,
       },
-      resume: req.file.path,
+      resume: req.body.resumeUrl,
       coverLetter: req.body.coverLetter,
     };
-
     const application = await JobApplication.create(applicationData);
 
     // Increment application count on the job
@@ -245,6 +243,7 @@ exports.createApplication = async (req, res, next) => {
       data: application,
     });
   } catch (err) {
+    console.error("Error in createApplication:", err);
     next(err);
   }
 };

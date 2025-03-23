@@ -1,18 +1,18 @@
 const User = require("../models/User");
 const { generateToken } = require("../config/jwt");
-const { check, validationResult } = require("express-validator");
+const { body, check, validationResult } = require("express-validator");
 
 // Validation rules
 exports.registerValidation = [
-  check("email", "Please include a valid email").isEmail(),
-  check("password", "Password must be at least 6 characters").isLength({
+  body("email", "Please include a valid email").isEmail(),
+  body("password", "Password must be at least 6 characters").isLength({
     min: 6,
   }),
-  check("firstName", "First name is required").notEmpty(),
-  check("lastName", "Last name is required").notEmpty(),
-  check("role", "Role must be admin, therapist, parent, or staff")
+  body("firstName", "First name is required").notEmpty(),
+  body("lastName", "Last name is required").notEmpty(),
+  body("role", "Role must be admin, therapist, parent, staff, or receptionist")
     .optional()
-    .isIn(["admin", "therapist", "parent", "staff"]),
+    .isIn(["admin", "therapist", "parent", "staff", "receptionist"]),
 ];
 
 exports.loginValidation = [

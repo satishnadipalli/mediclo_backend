@@ -20,7 +20,7 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "therapist", "parent", "staff"],
+      enum: ["admin", "therapist", "parent", "staff", "receptionist"],
       default: "parent",
     },
     firstName: {
@@ -84,5 +84,14 @@ UserSchema.pre("remove", async function (next) {
   await this.model("Patient").deleteMany({ parentId: this._id });
   next();
 });
+
+// Check if role field exists and update it to include receptionist
+const roleField = UserSchema.path("role");
+if (roleField) {
+  // If using enum for role field, ensure receptionist is included
+  if (roleField.enumValues && !roleField.enumValues.includes("receptionist")) {
+    UserSchema.path("role").enum([...roleField.enumValues, "receptionist"]);
+  }
+}
 
 module.exports = mongoose.model("User", UserSchema);

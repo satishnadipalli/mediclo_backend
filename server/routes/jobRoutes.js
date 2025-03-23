@@ -1,8 +1,5 @@
 const express = require("express");
-const {
-  protect,
-  authorize,
-} = require("../middleware/authMiddleware");
+const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getJobs,
   getJob,
@@ -19,8 +16,6 @@ const {
   getJobApplications,
   createApplicationValidation,
 } = require("../controllers/jobApplicationController");
-
-const { resumeUpload } = require("../config/cloudinary");
 
 const router = express.Router();
 
@@ -42,12 +37,7 @@ router.delete("/:id", authorize("admin"), deleteJob);
 // Get applications for a specific job (admin only)
 router.get("/:jobId/applications", authorize("admin"), getJobApplications);
 
-// Apply for a job
-router.post(
-  "/:jobId/apply",
-  resumeUpload.single("resume"),
-  createApplicationValidation,
-  createApplication
-);
+// Apply for a job - modified to remove the resume upload middleware
+router.post("/:jobId/apply", createApplicationValidation, createApplication);
 
 module.exports = router;

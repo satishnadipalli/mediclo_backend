@@ -3,7 +3,43 @@ const errorHandler = (err, req, res, next) => {
   error.message = err.message;
 
   // Log to console for dev
-  console.error(err.stack);
+  console.error("ERROR DETAILS:", {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    stack: err.stack,
+    storageErrors: err.storageErrors,
+  });
+
+  // Multer errors
+  if (err.name === "MulterError") {
+    let message = "File upload error";
+    switch (err.code) {
+      case "LIMIT_FILE_SIZE":
+        message = "File is too large";
+        break;
+      case "LIMIT_FIELD_COUNT":
+        message = "Too many fields in form";
+        break;
+      case "LIMIT_FIELD_KEY":
+        message = "Field name too long";
+        break;
+      case "LIMIT_FIELD_VALUE":
+        message = "Field value too long";
+        break;
+      case "LIMIT_FIELD_SIZE":
+        message = "Field size too large";
+        break;
+      case "LIMIT_UNEXPECTED_FILE":
+        message = `Unexpected field: ${err.field}`;
+        break;
+      case "LIMIT_PART_COUNT":
+        message = "Too many parts in multipart form";
+        break;
+    }
+    error = new Error(message);
+    error.statusCode = 400;
+  }
 
   // Mongoose bad ObjectId
   if (err.name === "CastError") {
@@ -30,6 +66,14 @@ const errorHandler = (err, req, res, next) => {
   if (err.array && typeof err.array === "function") {
     const message = err.array().map((error) => error.msg);
     error = new Error(message);
+    error.statusCode = 400;
+  }
+
+  // Busboy unexpected end of form error
+  if (err.message && err.message.includes("Unexpected end of form")) {
+    error = new Error(
+      "File upload was incomplete or corrupted. Please try again."
+    );
     error.statusCode = 400;
   }
 
