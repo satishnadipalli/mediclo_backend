@@ -8,7 +8,7 @@ const mongoSanitize = require("express-mongo-sanitize");
 const helmet = require("helmet");
 const xss = require("xss-clean");
 const hpp = require("hpp");
-const rateLimit = require("express-rate-limit");
+// const rateLimit = require("express-rate-limit");
 const fileUpload = require("express-fileupload");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
@@ -78,11 +78,11 @@ app.use(hpp());
 app.use(cors());
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 mins
-  max: 100,
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 10 * 60 * 1000, // 10 mins
+//   max: 100,
+// });
+// app.use(limiter);
 
 // Test API
 app.get("/api/test", (req, res) => {
