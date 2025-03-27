@@ -1,0 +1,557 @@
+{
+  "info": {
+    "_postman_id": "e9f3b8a1-5f3c-4a1d-9b9e-8a9c7b5a2e43",
+    "name": "8 Senses Gallery & Disease Tests",
+    "description": "Tests for Gallery and Disease APIs for 8 Senses application",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Login successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.token).to.exist;",
+                  "  ",
+                  "  // Save the token to environment variable",
+                  "  pm.environment.set(\"adminToken\", jsonData.token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"yourpassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login to get admin JWT token"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication requests for getting tokens"
+    },
+    {
+      "name": "Gallery API",
+      "item": [
+        {
+          "name": "Get All Gallery Images",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get gallery images successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gallery",
+              "host": ["{{baseUrl}}"],
+              "path": ["gallery"]
+            },
+            "description": "Retrieve all gallery images"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Gallery Image By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get gallery image by ID successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('object');",
+                  "  pm.expect(jsonData.data.title).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gallery/{{galleryImageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["gallery", "{{galleryImageId}}"]
+            },
+            "description": "Retrieve a single gallery image by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Gallery Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Create gallery image successful\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('object');",
+                  "  pm.expect(jsonData.data._id).to.exist;",
+                  "  ",
+                  "  // Save the new image ID for later tests",
+                  "  pm.environment.set(\"galleryImageId\", jsonData.data._id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Gallery Image\",\n  \"description\": \"This is a test image for the gallery\",\n  \"imageUrl\": \"https://res.cloudinary.com/your-cloud-name/image/upload/v1234567890/8senses/gallery/test_image.jpg\",\n  \"publicId\": \"8senses/gallery/test_image\",\n  \"category\": \"Clinic\",\n  \"featured\": false,\n  \"order\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/gallery",
+              "host": ["{{baseUrl}}"],
+              "path": ["gallery"]
+            },
+            "description": "Create a new gallery image (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Gallery Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Update gallery image successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data.title).to.equal(\"Updated Gallery Image\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Gallery Image\",\n  \"description\": \"This image has been updated\",\n  \"featured\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/gallery/{{galleryImageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["gallery", "{{galleryImageId}}"]
+            },
+            "description": "Update an existing gallery image (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Gallery Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get gallery stats successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('object');",
+                  "  pm.expect(jsonData.data.totalCount).to.exist;",
+                  "  pm.expect(jsonData.data.categoryStats).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/gallery/stats/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["gallery", "stats", "summary"]
+            },
+            "description": "Get gallery statistics (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Gallery Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Delete gallery image successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/gallery/{{galleryImageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["gallery", "{{galleryImageId}}"]
+            },
+            "description": "Delete a gallery image (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Tests for the Gallery API endpoints"
+    },
+    {
+      "name": "Disease API",
+      "item": [
+        {
+          "name": "Get All Diseases",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get diseases successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/diseases",
+              "host": ["{{baseUrl}}"],
+              "path": ["diseases"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Developmental Disorder",
+                  "disabled": true
+                },
+                {
+                  "key": "ageGroup",
+                  "value": "Infant (0-1 year)",
+                  "disabled": true
+                },
+                {
+                  "key": "keyword",
+                  "value": "development",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve all diseases with optional filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Disease Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get disease categories successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/diseases/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["diseases", "categories"]
+            },
+            "description": "Get all disease categories"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Disease By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Get disease by ID successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('object');",
+                  "  pm.expect(jsonData.data.name).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/diseases/{{diseaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["diseases", "{{diseaseId}}"]
+            },
+            "description": "Retrieve a single disease by ID or slug"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Disease",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Create disease successful\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data).to.be.an('object');",
+                  "  pm.expect(jsonData.data._id).to.exist;",
+                  "  ",
+                  "  // Save the new disease ID for later tests",
+                  "  pm.environment.set(\"diseaseId\", jsonData.data._id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Disease\",\n  \"description\": \"This is a test disease description with comprehensive information.\",\n  \"symptoms\": [\"Symptom 1\", \"Symptom 2\", \"Symptom 3\"],\n  \"causes\": \"Common causes include genetic factors and environmental conditions.\",\n  \"diagnosis\": \"Diagnosis typically involves clinical evaluation and specialized tests.\",\n  \"treatments\": \"Treatment options include therapy, medication, and lifestyle adjustments.\",\n  \"category\": \"Developmental Disorder\",\n  \"ageGroup\": [\"Infant (0-1 year)\", \"Toddler (1-3 years)\"],\n  \"resources\": [\n    {\n      \"title\": \"Helpful Resource\",\n      \"url\": \"https://example.com/resource\",\n      \"type\": \"Website\"\n    }\n  ],\n  \"keywords\": [\"test\", \"example\", \"developmental\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/diseases",
+              "host": ["{{baseUrl}}"],
+              "path": ["diseases"]
+            },
+            "description": "Create a new disease (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Disease",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Update disease successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "  pm.expect(jsonData.data.name).to.equal(\"Updated Test Disease\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test Disease\",\n  \"description\": \"This description has been updated\",\n  \"isPublished\": true,\n  \"preventions\": \"Prevention strategies include early intervention and regular monitoring.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/diseases/{{diseaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["diseases", "{{diseaseId}}"]
+            },
+            "description": "Update an existing disease (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Disease",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Delete disease successful\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/diseases/{{diseaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["diseases", "{{diseaseId}}"]
+            },
+            "description": "Delete a disease (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Tests for the Disease API endpoints"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    }
+  ]
+}

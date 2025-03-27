@@ -1,8 +1,5 @@
 const express = require("express");
-const {
-  protect,
-  authorize,
-} = require("../middleware/authMiddleware");
+const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getTherapists,
   getTherapist,
@@ -12,6 +9,7 @@ const {
   getTherapistByUserId,
   createTherapistValidation,
   updateTherapistValidation,
+  getAvailableTherapists,
 } = require("../controllers/therapistController");
 
 const router = express.Router();
@@ -43,5 +41,8 @@ router
     updateTherapist
   )
   .delete(authorize("admin"), deleteTherapist);
+
+// Add new route to get available therapists with their availability
+router.get("/available", getAvailableTherapists);
 
 module.exports = router;

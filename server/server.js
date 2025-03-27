@@ -57,7 +57,6 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // Cookie parser
 app.use(cookieParser());
 
-
 // Dev logging middleware
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));

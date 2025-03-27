@@ -551,3 +551,246 @@ exports.getPatientAppointments = async (req, res) => {
     });
   }
 };
+
+// Validation for parent appointment request
+exports.validateParentAppointmentRequest = [
+  body("patientId").notEmpty().withMessage("Patient is required"),
+  body("preferredDates")
+    .isArray({ min: 1 })
+    .withMessage("At least one preferred date is required"),
+  body("preferredDates.*.date").isDate().withMessage("Invalid date format"),
+  body("preferredDates.*.timeSlot")
+    .notEmpty()
+    .withMessage("Time slot preference is required")
+    .isIn(["morning", "afternoon", "evening"])
+    .withMessage("Time slot must be morning, afternoon, or evening"),
+  body("therapistPreference")
+    .optional()
+    .isIn(["no_preference", "specific", "any_available"])
+    .withMessage("Invalid therapist preference"),
+  body("specificTherapistId")
+    .optional()
+    .custom((value, { req }) => {
+      if (req.body.therapistPreference === "specific" && !value) {
+        throw new Error(
+          "Therapist ID is required when selecting a specific therapist"
+        );
+      }
+      return true;
+    }),
+  body("therapyType").notEmpty().withMessage("Therapy type is required"),
+  body("notes").optional(),
+  body("consent").equals("true").withMessage("Patient consent is required"),
+];
+
+// @desc    Create parent appointment request
+// @route   POST /api/appointments/request
+// @access  Private (Parent only)
+exports.createParentAppointmentRequest = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array(),
+    });
+  }
+
+  try {
+    // Check if patient exists and belongs to the parent
+    const patient = await Patient.findById(req.body.patientId);
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: "Patient not found",
+      });
+    }
+
+    // Verify parent is the guardian of this patient
+    if (patient.parentId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: "Not authorized to book appointments for this patient",
+      });
+    }
+
+    // If specific therapist is selected, verify therapist exists
+    let therapistId = null;
+    if (
+      req.body.therapistPreference === "specific" &&
+      req.body.specificTherapistId
+    ) {
+      const therapist = await User.findById(req.body.specificTherapistId);
+      if (!therapist || therapist.role !== "therapist") {
+        return res.status(404).json({
+          success: false,
+          error: "Therapist not found",
+        });
+      }
+      therapistId = req.body.specificTherapistId;
+    }
+
+    // Create the appointment request with status "pending_assignment" if no therapist selected
+    const appointmentStatus = therapistId
+      ? "pending_confirmation"
+      : "pending_assignment";
+
+    // Create the appointment request
+    const appointment = await Appointment.create({
+      patientId: req.body.patientId,
+      therapistId: therapistId, // Can be null if no specific therapist
+      preferredDates: req.body.preferredDates,
+      therapistPreference: req.body.therapistPreference || "no_preference",
+      type: req.body.therapyType,
+      status: appointmentStatus,
+      notes: req.body.notes || "",
+      payment: {
+        amount: 0, // To be determined later
+        status: "pending",
+        method: "not_specified",
+      },
+      requestedByParent: true,
+      parentRequestedAt: new Date(),
+    });
+
+    res.status(201).json({
+      success: true,
+      data: appointment,
+      message: therapistId
+        ? "Appointment request submitted and awaiting confirmation"
+        : "Appointment request submitted and awaiting therapist assignment",
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      const messages = Object.values(err.errors).map((val) => val.message);
+      return res.status(400).json({
+        success: false,
+        error: messages,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: "Server Error",
+      });
+    }
+  }
+};
+
+// @desc    Assign therapist to pending appointment request
+// @route   PUT /api/appointments/:id/assign-therapist
+// @access  Private (Admin, Receptionist)
+exports.assignTherapistToAppointment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      });
+    }
+
+    // Verify the appointment is in a pending_assignment status
+    if (appointment.status !== "pending_assignment") {
+      return res.status(400).json({
+        success: false,
+        error: "This appointment is not pending therapist assignment",
+      });
+    }
+
+    // Check if therapist exists and is a therapist
+    const therapist = await User.findById(req.body.therapistId);
+    if (!therapist || therapist.role !== "therapist") {
+      return res.status(404).json({
+        success: false,
+        error: "Therapist not found",
+      });
+    }
+
+    // Check if the selected date and time is in the preferred dates
+    const { date, startTime, endTime } = req.body;
+    const selectedDate = new Date(date);
+
+    if (appointment.preferredDates && appointment.preferredDates.length > 0) {
+      // Check if the date matches one of the preferred dates
+      const matchingDateFound = appointment.preferredDates.some((prefDate) => {
+        const prefDateObject = new Date(prefDate.date);
+        return (
+          prefDateObject.getFullYear() === selectedDate.getFullYear() &&
+          prefDateObject.getMonth() === selectedDate.getMonth() &&
+          prefDateObject.getDate() === selectedDate.getDate()
+        );
+      });
+
+      if (!matchingDateFound) {
+        return res.status(400).json({
+          success: false,
+          error: "Selected date doesn't match any of the preferred dates",
+        });
+      }
+    }
+
+    // Check for therapist availability at the selected date/time
+    const existingAppointment = await Appointment.findOne({
+      therapistId: req.body.therapistId,
+      date: selectedDate,
+      _id: { $ne: appointment._id },
+      status: { $nin: ["cancelled", "pending_assignment"] },
+      $or: [
+        {
+          startTime: { $lte: startTime },
+          endTime: { $gt: startTime },
+        },
+        {
+          startTime: { $lt: endTime },
+          endTime: { $gte: endTime },
+        },
+        {
+          startTime: { $gte: startTime },
+          endTime: { $lte: endTime },
+        },
+      ],
+    });
+
+    if (existingAppointment) {
+      return res.status(400).json({
+        success: false,
+        error: "Therapist already has an appointment at this time",
+      });
+    }
+
+    // Update the appointment with the assigned therapist and scheduled time
+    appointment.therapistId = req.body.therapistId;
+    appointment.date = selectedDate;
+    appointment.startTime = startTime;
+    appointment.endTime = endTime;
+    appointment.status = "scheduled";
+    appointment.assignedBy = req.user._id;
+    appointment.assignedAt = new Date();
+
+    // Update the payment amount if provided
+    if (req.body.paymentAmount) {
+      appointment.payment.amount = req.body.paymentAmount;
+    }
+
+    await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      data: appointment,
+      message: "Therapist successfully assigned to appointment",
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      const messages = Object.values(err.errors).map((val) => val.message);
+      return res.status(400).json({
+        success: false,
+        error: messages,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: "Server Error",
+      });
+    }
+  }
+};

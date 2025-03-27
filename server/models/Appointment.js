@@ -1,5 +1,20 @@
 const mongoose = require("mongoose");
 
+const TimeSlotSchema = new mongoose.Schema(
+  {
+    date: {
+      type: Date,
+      required: [true, "Please add a date"],
+    },
+    timeSlot: {
+      type: String,
+      enum: ["morning", "afternoon", "evening"],
+      required: [true, "Please specify a time slot"],
+    },
+  },
+  { _id: false }
+);
+
 const AppointmentSchema = new mongoose.Schema(
   {
     patientId: {
@@ -10,23 +25,42 @@ const AppointmentSchema = new mongoose.Schema(
     therapistId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Please add a therapist"],
+      // Making therapistId optional for parent appointment requests
+      required: function () {
+        return this.status !== "pending_assignment";
+      },
     },
     date: {
       type: Date,
-      required: [true, "Please add a date"],
+      required: function () {
+        // Only required for confirmed appointments
+        return !this.preferredDates || this.preferredDates.length === 0;
+      },
     },
     startTime: {
       type: String,
-      required: [true, "Please add a start time"],
+      required: function () {
+        // Only required for confirmed appointments
+        return !this.preferredDates || this.preferredDates.length === 0;
+      },
     },
     endTime: {
       type: String,
-      required: [true, "Please add an end time"],
+      required: function () {
+        // Only required for confirmed appointments
+        return !this.preferredDates || this.preferredDates.length === 0;
+      },
     },
     status: {
       type: String,
-      enum: ["scheduled", "completed", "cancelled", "no-show"],
+      enum: [
+        "scheduled",
+        "completed",
+        "cancelled",
+        "no-show",
+        "pending_assignment", // Waiting for admin to assign therapist
+        "pending_confirmation", // Waiting for therapist to confirm
+      ],
       default: "scheduled",
     },
     type: {
@@ -49,7 +83,7 @@ const AppointmentSchema = new mongoose.Schema(
       },
       method: {
         type: String,
-        enum: ["card", "cash", "insurance"],
+        enum: ["card", "cash", "insurance", "not_specified"],
         default: "card",
       },
     },
@@ -68,6 +102,30 @@ const AppointmentSchema = new mongoose.Schema(
       required: [true, "Patient consent is required"],
       default: false,
     },
+    // Fields for parent appointment requests
+    preferredDates: {
+      type: [TimeSlotSchema],
+      default: undefined,
+    },
+    therapistPreference: {
+      type: String,
+      enum: ["no_preference", "specific", "any_available"],
+      default: "no_preference",
+    },
+    requestedByParent: {
+      type: Boolean,
+      default: false,
+    },
+    parentRequestedAt: {
+      type: Date,
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    assignedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -82,6 +140,11 @@ AppointmentSchema.index({ therapistId: 1, date: 1 });
 
 // Prevent overlapping appointments for the same therapist
 AppointmentSchema.pre("save", async function (next) {
+  // Skip validation for appointment requests without confirmed dates
+  if (this.status === "pending_assignment" || !this.therapistId) {
+    return next();
+  }
+
   if (
     this.isModified("date") ||
     this.isModified("startTime") ||
