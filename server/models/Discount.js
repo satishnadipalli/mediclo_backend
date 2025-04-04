@@ -8,26 +8,11 @@ const DiscountSchema = new mongoose.Schema({
     trim: true,
     uppercase: true,
   },
-  description: {
-    type: String,
-  },
-  type: {
-    type: String,
-    enum: ["percentage", "fixed", "shipping"],
-    required: true,
-  },
-  value: {
+  discountValue: {
     type: Number,
     required: true,
     min: 0,
-  },
-  minPurchase: {
-    type: Number,
-    default: 0,
-  },
-  maxDiscount: {
-    type: Number,
-    default: null,
+    max: 100,
   },
   startDate: {
     type: Date,
@@ -49,18 +34,6 @@ const DiscountSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  applicableProducts: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-    },
-  ],
-  applicableCategories: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-    },
-  ],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -85,23 +58,11 @@ DiscountSchema.methods.isValid = function () {
 
 // Method to calculate discount amount
 DiscountSchema.methods.calculateDiscount = function (subtotal) {
-  if (!this.isValid() || subtotal < this.minPurchase) {
+  if (!this.isValid()) {
     return 0;
   }
 
-  let discountAmount = 0;
-
-  if (this.type === "percentage") {
-    discountAmount = subtotal * (this.value / 100);
-  } else if (this.type === "fixed") {
-    discountAmount = this.value;
-  }
-
-  // Apply max discount if set
-  if (this.maxDiscount !== null && discountAmount > this.maxDiscount) {
-    discountAmount = this.maxDiscount;
-  }
-
+  let discountAmount = subtotal * (this.discountValue / 100);
   return discountAmount;
 };
 

@@ -1,48 +1,58 @@
 const express = require("express");
 const {
   getWebinars,
+  getUpcomingWebinars,
   getWebinar,
   createWebinar,
   updateWebinar,
   deleteWebinar,
-  registerForWebinar,
-  cancelRegistration,
-  getWebinarRegistrations,
   updateWebinarStatus,
-  addWebinarRating,
-  getUpcomingWebinars,
+  getWebinarRegistrations,
+  registerPublicForWebinar,
+  validatePublicRegistration,
+  markAttendance,
   validateWebinar,
-  validateWebinarRating,
   validateWebinarStatus,
 } = require("../controllers/webinarController");
 
-const { protect, authorize } = require("../middleware/authMiddleware");
-
 const router = express.Router();
+
+const { protect, authorize } = require("../middleware/authMiddleware");
+const { validateRequest } = require("../middleware/validationMiddleware");
 
 // Public routes
 router.get("/", getWebinars);
 router.get("/upcoming", getUpcomingWebinars);
 router.get("/:id", getWebinar);
+router.post(
+  "/public/register/:id",
+  validatePublicRegistration,
+  validateRequest,
+  registerPublicForWebinar
+);
 
-// Protected routes
-router.use(protect);
-
-// User routes (require authentication)
-router.post("/:id/register", registerForWebinar);
-router.delete("/:id/register", cancelRegistration);
-router.post("/:id/ratings", validateWebinarRating, addWebinarRating);
-
-// Admin only routes
-router.post("/", authorize("admin"), validateWebinar, createWebinar);
-router.put("/:id", authorize("admin"), validateWebinar, updateWebinar);
-router.delete("/:id", authorize("admin"), deleteWebinar);
-router.get("/:id/registrations", authorize("admin"), getWebinarRegistrations);
+// Admin-only routes
+router.post("/", protect, authorize("admin"), validateWebinar, createWebinar);
+router.put("/:id", protect, authorize("admin"), validateWebinar, updateWebinar);
+router.delete("/:id", protect, authorize("admin"), deleteWebinar);
 router.put(
   "/:id/status",
+  protect,
   authorize("admin"),
   validateWebinarStatus,
   updateWebinarStatus
+);
+router.get(
+  "/:id/registrations",
+  protect,
+  authorize("admin"),
+  getWebinarRegistrations
+);
+router.put(
+  "/:webinarId/registrations/:id/attend",
+  protect,
+  authorize("admin"),
+  markAttendance
 );
 
 module.exports = router;

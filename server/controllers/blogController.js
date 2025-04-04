@@ -5,15 +5,11 @@ const { cloudinary } = require("../config/cloudinary");
 // Validation rules
 exports.createBlogValidation = [
   check("title", "Title is required").notEmpty().isLength({ max: 100 }),
+  check("description", "Description cannot be more than 500 characters")
+    .optional()
+    .isLength({ max: 500 }),
   check("content", "Content is required").notEmpty(),
-  check("category", "Category must be valid").isIn([
-    "Parenting",
-    "Child Development",
-    "Therapy Tips",
-    "Success Stories",
-    "News",
-    "Other",
-  ]),
+  check("category", "Category is required").notEmpty(),
   check("tags", "Tags must be an array").optional().isArray(),
   check("isPublished", "isPublished must be a boolean").optional().isBoolean(),
 ];
@@ -23,23 +19,13 @@ exports.updateBlogValidation = [
     .optional()
     .notEmpty()
     .isLength({ max: 100 }),
-  check("content", "Content is required").optional().notEmpty(),
-  check("category", "Category must be valid")
+  check("description", "Description cannot be more than 500 characters")
     .optional()
-    .isIn([
-      "Parenting",
-      "Child Development",
-      "Therapy Tips",
-      "Success Stories",
-      "News",
-      "Other",
-    ]),
+    .isLength({ max: 500 }),
+  check("content", "Content is required").optional().notEmpty(),
+  check("category", "Category is required").optional().notEmpty(),
   check("tags", "Tags must be an array").optional().isArray(),
   check("isPublished", "isPublished must be a boolean").optional().isBoolean(),
-];
-
-exports.commentValidation = [
-  check("comment", "Comment is required").notEmpty(),
 ];
 
 // @desc    Get all blogs
@@ -111,10 +97,6 @@ exports.getBlog = async (req, res, next) => {
       });
     }
 
-    // Increment view count
-    blog.views += 1;
-    await blog.save();
-
     res.status(200).json({
       success: true,
       data: blog,
@@ -124,9 +106,9 @@ exports.getBlog = async (req, res, next) => {
   }
 };
 
-// @desc    Create new blog
+// @desc    Create blog
 // @route   POST /api/blogs
-// @access  Private/Admin/Therapist
+// @access  Private/Admin
 exports.createBlog = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -137,11 +119,6 @@ exports.createBlog = async (req, res, next) => {
         errors: errors.array(),
       });
     }
-
-    // Set author to current user
-    req.body.author = {
-      userId: req.user.id,
-    };
 
     // Create the blog with the provided data
     // featuredImage should now be provided as a URL in the request body
@@ -158,7 +135,7 @@ exports.createBlog = async (req, res, next) => {
 
 // @desc    Update blog
 // @route   PUT /api/blogs/:id
-// @access  Private/Admin/Author
+// @access  Private/Admin
 exports.updateBlog = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -179,17 +156,6 @@ exports.updateBlog = async (req, res, next) => {
       });
     }
 
-    // Check if user is authorized to update this blog
-    if (
-      req.user.role !== "admin" &&
-      blog.author.userId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this blog",
-      });
-    }
-
     blog = await Blog.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -206,7 +172,7 @@ exports.updateBlog = async (req, res, next) => {
 
 // @desc    Delete blog
 // @route   DELETE /api/blogs/:id
-// @access  Private/Admin/Author
+// @access  Private/Admin
 exports.deleteBlog = async (req, res, next) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -215,17 +181,6 @@ exports.deleteBlog = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Blog not found",
-      });
-    }
-
-    // Check if user is authorized to delete this blog
-    if (
-      req.user.role !== "admin" &&
-      blog.author.userId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to delete this blog",
       });
     }
 
@@ -309,75 +264,6 @@ exports.getBlogsByCategory = async (req, res, next) => {
       count: blogs.length,
       pagination,
       data: blogs,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Add comment to blog
-// @route   POST /api/blogs/:id/comments
-// @access  Private
-exports.addComment = async (req, res, next) => {
-  try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      });
-    }
-
-    const blog = await Blog.findById(req.params.id);
-
-    if (!blog) {
-      return res.status(404).json({
-        success: false,
-        error: "Blog not found",
-      });
-    }
-
-    // Add comment
-    blog.comments.push({
-      userId: req.user.id,
-      name: `${req.user.firstName} ${req.user.lastName}`,
-      comment: req.body.comment,
-      date: new Date(),
-    });
-
-    await blog.save();
-
-    res.status(200).json({
-      success: true,
-      data: blog,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Like blog
-// @route   PUT /api/blogs/:id/like
-// @access  Private
-exports.likeBlog = async (req, res, next) => {
-  try {
-    const blog = await Blog.findById(req.params.id);
-
-    if (!blog) {
-      return res.status(404).json({
-        success: false,
-        error: "Blog not found",
-      });
-    }
-
-    // Increment like count
-    blog.likes += 1;
-    await blog.save();
-
-    res.status(200).json({
-      success: true,
-      data: blog,
     });
   } catch (err) {
     next(err);

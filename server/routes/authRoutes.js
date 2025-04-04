@@ -11,20 +11,46 @@ const {
   updateProfileValidation,
   changePasswordValidation,
 } = require("../controllers/authController");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, authorize } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.post("/register", registerValidation, register);
+// All auth routes restricted to admin, therapist, and receptionist roles
 router.post("/login", loginValidation, login);
-router.get("/me", protect, getMe);
-router.put("/update-profile", protect, updateProfileValidation, updateProfile);
+router.post(
+  "/logout",
+  protect,
+  authorize("admin", "receptionist", "therapist"),
+  logout
+);
+router.get(
+  "/me",
+  protect,
+  authorize("admin", "receptionist", "therapist"),
+  getMe
+);
+router.put(
+  "/update-profile",
+  protect,
+  authorize("admin", "receptionist", "therapist"),
+  updateProfileValidation,
+  updateProfile
+);
 router.put(
   "/change-password",
   protect,
+  authorize("admin", "receptionist", "therapist"),
   changePasswordValidation,
   changePassword
 );
-router.post("/logout", protect, logout);
+
+// Admin-only route for creating staff accounts
+router.post(
+  "/register-staff",
+  protect,
+  authorize("admin"),
+  registerValidation,
+  register
+);
 
 module.exports = router;

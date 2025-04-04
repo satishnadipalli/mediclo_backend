@@ -17,38 +17,88 @@ const TimeSlotSchema = new mongoose.Schema(
 
 const AppointmentSchema = new mongoose.Schema(
   {
+    // Fields for public form submissions
+    fullName: {
+      type: String,
+    },
+    email: {
+      type: String,
+    },
+    phone: {
+      type: String,
+    },
+    requestedSpecialist: {
+      type: String,
+    },
+    requestedDateTime: {
+      type: Date,
+    },
+    consultationMode: {
+      type: String,
+      enum: ["in-person", "video-call", "phone"],
+    },
+    requestSource: {
+      type: String,
+      default: "website",
+    },
+    isPublicSubmission: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Link to specific service
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
+      required: function () {
+        return !this.isPublicSubmission;
+      },
+    },
+
+    // Original fields - making some optional to support public submissions
     patientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Patient",
-      required: [true, "Please add a patient"],
+      required: function () {
+        return !this.isPublicSubmission;
+      },
     },
     therapistId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      // Making therapistId optional for parent appointment requests
+      // Making therapistId optional for parent appointment requests and public submissions
       required: function () {
-        return this.status !== "pending_assignment";
+        return !this.isPublicSubmission && this.status !== "pending_assignment";
       },
     },
     date: {
       type: Date,
       required: function () {
-        // Only required for confirmed appointments
-        return !this.preferredDates || this.preferredDates.length === 0;
+        // Only required for confirmed appointments that aren't public submissions
+        return (
+          !this.isPublicSubmission &&
+          (!this.preferredDates || this.preferredDates.length === 0)
+        );
       },
     },
     startTime: {
       type: String,
       required: function () {
-        // Only required for confirmed appointments
-        return !this.preferredDates || this.preferredDates.length === 0;
+        // Only required for confirmed appointments that aren't public submissions
+        return (
+          !this.isPublicSubmission &&
+          (!this.preferredDates || this.preferredDates.length === 0)
+        );
       },
     },
     endTime: {
       type: String,
       required: function () {
-        // Only required for confirmed appointments
-        return !this.preferredDates || this.preferredDates.length === 0;
+        // Only required for confirmed appointments that aren't public submissions
+        return (
+          !this.isPublicSubmission &&
+          (!this.preferredDates || this.preferredDates.length === 0)
+        );
       },
     },
     status: {
@@ -60,13 +110,16 @@ const AppointmentSchema = new mongoose.Schema(
         "no-show",
         "pending_assignment", // Waiting for admin to assign therapist
         "pending_confirmation", // Waiting for therapist to confirm
+        "pending", // New status for public submissions
       ],
       default: "scheduled",
     },
     type: {
       type: String,
-      enum: ["initial assessment", "follow-up", "therapy session"],
-      required: [true, "Please add appointment type"],
+      enum: ["initial assessment", "follow-up", "therapy session", "other"],
+      required: function () {
+        return !this.isPublicSubmission;
+      },
     },
     notes: {
       type: String,
@@ -74,7 +127,10 @@ const AppointmentSchema = new mongoose.Schema(
     payment: {
       amount: {
         type: Number,
-        required: [true, "Please add payment amount"],
+        required: function () {
+          return !this.isPublicSubmission;
+        },
+        default: 0,
       },
       status: {
         type: String,
@@ -84,7 +140,7 @@ const AppointmentSchema = new mongoose.Schema(
       method: {
         type: String,
         enum: ["card", "cash", "insurance", "not_specified"],
-        default: "card",
+        default: "not_specified",
       },
     },
     // Adding address field for appointment location
@@ -99,7 +155,9 @@ const AppointmentSchema = new mongoose.Schema(
     // Adding consent field for patient consent
     consent: {
       type: Boolean,
-      required: [true, "Patient consent is required"],
+      required: function () {
+        return !this.isPublicSubmission;
+      },
       default: false,
     },
     // Fields for parent appointment requests
@@ -137,11 +195,16 @@ const AppointmentSchema = new mongoose.Schema(
 // Add index for efficient queries
 AppointmentSchema.index({ patientId: 1, date: 1 });
 AppointmentSchema.index({ therapistId: 1, date: 1 });
+AppointmentSchema.index({ email: 1 }); // Add index for email searches for public submissions
 
 // Prevent overlapping appointments for the same therapist
 AppointmentSchema.pre("save", async function (next) {
   // Skip validation for appointment requests without confirmed dates
-  if (this.status === "pending_assignment" || !this.therapistId) {
+  if (
+    this.isPublicSubmission ||
+    this.status === "pending_assignment" ||
+    !this.therapistId
+  ) {
     return next();
   }
 

@@ -20,8 +20,8 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "therapist", "parent", "staff", "receptionist"],
-      default: "parent",
+      enum: ["admin", "therapist", "staff", "receptionist"],
+      default: "receptionist",
     },
     firstName: {
       type: String,
@@ -81,7 +81,12 @@ UserSchema.virtual("fullName").get(function () {
 
 // Cascade delete patients when a user is deleted
 UserSchema.pre("remove", async function (next) {
-  await this.model("Patient").deleteMany({ parentId: this._id });
+  // Previously handled deleting patients for parent users,
+  // check if this user is associated with any patients
+  await this.model("Patient").updateMany(
+    { userId: this._id },
+    { $set: { userId: null } }
+  );
   next();
 });
 

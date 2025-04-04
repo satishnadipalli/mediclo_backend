@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const slugify = require("slugify");
 
 const CategorySchema = new mongoose.Schema(
   {
@@ -9,23 +8,20 @@ const CategorySchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    slug: String,
     description: {
       type: String,
     },
     categoryType: {
-      type: String,
-      enum: ["product", "blog", "service", "other"],
-      default: "product",
-    },
-    image: {
-      type: String,
-    },
-    parent: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      default: null,
-    },
+  type: String,
+  enum: [
+    "Therapy Type",
+    "Age Group",
+    "Learning Type"
+  ],
+  default: "Therapy Type",
+},
+
+
     products: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -47,12 +43,6 @@ const CategorySchema = new mongoose.Schema(
   }
 );
 
-// Create category slug from the name
-CategorySchema.pre("save", function (next) {
-  this.slug = slugify(this.name, { lower: true });
-  next();
-});
-
 // Virtual for subcategories
 CategorySchema.virtual("subcategories", {
   ref: "Category",
@@ -61,7 +51,6 @@ CategorySchema.virtual("subcategories", {
 });
 
 // Indexes
-CategorySchema.index({ slug: 1 });
 CategorySchema.index({ parent: 1 });
 CategorySchema.index({ categoryType: 1 });
 

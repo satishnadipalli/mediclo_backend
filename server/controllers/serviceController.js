@@ -5,6 +5,7 @@ const { check, validationResult } = require("express-validator");
 exports.createServiceValidation = [
   check("name", "Service name is required").notEmpty(),
   check("description", "Description is required").notEmpty(),
+  check("detailedContent").optional(),
   check("category", "Category must be valid").isIn([
     "Occupational Therapy",
     "Speech Therapy",
@@ -20,6 +21,7 @@ exports.createServiceValidation = [
 exports.updateServiceValidation = [
   check("name", "Service name is required").optional().notEmpty(),
   check("description", "Description is required").optional().notEmpty(),
+  check("detailedContent").optional(),
   check("category", "Category must be valid")
     .optional()
     .isIn([

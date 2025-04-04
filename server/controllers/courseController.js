@@ -1,6 +1,7 @@
 const Course = require("../models/Course");
 const ErrorResponse = require("../utils/errorResponse");
 const { body, param, validationResult } = require("express-validator");
+const CourseEnrollment = require("../models/CourseEnrollment");
 
 // Validation middleware
 exports.validateCourse = [
@@ -9,7 +10,7 @@ exports.validateCourse = [
     .withMessage("Please add a course title")
     .isLength({ max: 100 })
     .withMessage("Course title cannot be more than 100 characters"),
-  body("instructor").notEmpty().withMessage("Please add an instructor name"),
+  body("instructor").optional(),
   body("price")
     .notEmpty()
     .withMessage("Please add a price")
@@ -22,7 +23,7 @@ exports.validateCourse = [
   body("category").notEmpty().withMessage("Please select a course category"),
   body("status")
     .optional()
-    .isIn(["draft", "published", "archived"])
+    .isIn(["draft", "published", "archived", "active"])
     .withMessage("Invalid status value"),
   (req, res, next) => {
     const errors = validationResult(req);
@@ -43,25 +44,6 @@ exports.validateCourseVideo = [
     .optional()
     .isNumeric()
     .withMessage("Duration must be a number"),
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      });
-    }
-    next();
-  },
-];
-
-exports.validateCourseRating = [
-  body("rating")
-    .notEmpty()
-    .withMessage("Please provide a rating")
-    .isInt({ min: 1, max: 5 })
-    .withMessage("Rating must be between 1 and 5"),
-  body("comment").notEmpty().withMessage("Please provide a comment"),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -327,70 +309,6 @@ exports.deleteCourseVideo = async (req, res, next) => {
   }
 };
 
-// @desc    Add rating to course
-// @route   POST /api/courses/:id/ratings
-// @access  Private
-exports.addCourseRating = async (req, res, next) => {
-  try {
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return next(
-        new ErrorResponse(`Course not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Check if user already rated the course
-    const existingRating = course.ratings.find(
-      (rating) => rating.user.toString() === req.user.id
-    );
-
-    if (existingRating) {
-      return next(new ErrorResponse(`You have already rated this course`, 400));
-    }
-
-    // Add rating to ratings array
-    const ratingData = {
-      rating: req.body.rating,
-      comment: req.body.comment,
-      user: req.user.id,
-    };
-
-    course.ratings.push(ratingData);
-    await course.save();
-
-    res.status(200).json({
-      success: true,
-      data: course,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Get course ratings
-// @route   GET /api/courses/:id/ratings
-// @access  Public
-exports.getCourseRatings = async (req, res, next) => {
-  try {
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return next(
-        new ErrorResponse(`Course not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    res.status(200).json({
-      success: true,
-      count: course.ratings.length,
-      data: course.ratings,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // @desc    Update course status
 // @route   PUT /api/courses/:id/status
 // @access  Private/Admin
@@ -413,5 +331,87 @@ exports.updateCourseStatus = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+// @desc    Enroll in a course without authentication
+// @route   POST /api/courses/public/enroll/:id
+// @access  Public
+exports.enrollPublicInCourse = async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, paymentMethod } = req.body;
+
+    const courseId = req.params.id;
+
+    // Check if course exists and is open for enrollment
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: "Course not found",
+      });
+    }
+
+    if (course.status !== "active") {
+      return res.status(400).json({
+        success: false,
+        error: "This course is not open for enrollment",
+      });
+    }
+
+    // Validate required fields
+    if (!firstName || !lastName || !email) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide all required fields",
+      });
+    }
+
+    // Check if user is already enrolled
+    const existingEnrollment = await CourseEnrollment.findOne({
+      courseId,
+      email,
+    });
+
+    if (existingEnrollment) {
+      return res.status(400).json({
+        success: false,
+        error: "You are already enrolled in this course",
+      });
+    }
+
+    // Create the enrollment
+    const enrollment = await CourseEnrollment.create({
+      courseId,
+      firstName,
+      lastName,
+      email,
+      phone: phone || "",
+      paymentStatus: "pending",
+      paymentMethod: paymentMethod || "card",
+      status: "enrolled",
+      isPublicSubmission: true,
+      progress: 0,
+      completedLessons: [],
+    });
+
+    // Increment enrollment count
+    course.enrollmentsCount = (course.enrollmentsCount || 0) + 1;
+    await course.save();
+
+    // Send successful response
+    res.status(201).json({
+      success: true,
+      message:
+        "Thank you for enrolling! Course details will be sent to your email.",
+      reference: enrollment._id,
+    });
+  } catch (err) {
+    console.error("Error enrolling in course:", err);
+    res.status(500).json({
+      success: false,
+      error:
+        "We couldn't process your enrollment. Please try again or contact us directly.",
+    });
   }
 };

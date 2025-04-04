@@ -31,10 +31,9 @@ const therapistRoutes = require("./routes/therapistRoutes");
 const jobRoutes = require("./routes/jobRoutes");
 const jobApplicationRoutes = require("./routes/jobApplicationRoutes");
 const blogRoutes = require("./routes/blogRoutes");
-const feedbackRoutes = require("./routes/feedbackRoutes");
-const inventoryRoutes = require("./routes/inventoryRoutes");
+// Comment out or remove the inventoryRoutes import
+// const inventoryRoutes = require("./routes/inventoryRoutes");
 const orderRoutes = require("./routes/orderRoutes");
-const shippingRoutes = require("./routes/shippingRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const discountRoutes = require("./routes/discountRoutes");
@@ -107,10 +106,9 @@ app.use("/api/therapists", therapistRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/job-applications", jobApplicationRoutes);
 app.use("/api/blogs", blogRoutes);
-app.use("/api/feedback", feedbackRoutes);
-app.use("/api/inventory", inventoryRoutes);
+// Comment out or remove the inventoryRoutes usage
+// app.use("/api/inventory", inventoryRoutes);
 app.use("/api/orders", orderRoutes);
-app.use("/api/shipping", shippingRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/discounts", discountRoutes);

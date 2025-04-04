@@ -16,33 +16,22 @@ const router = express.Router();
 
 // Public routes
 router.get("/", getTherapists);
+router.get("/available", getAvailableTherapists);
 router.get("/:id", getTherapist);
 
-// Protected routes
-router.use(protect);
+// Protected admin-only routes
+router.use(protect, authorize("admin"));
 
-// Get therapist by user ID
+// Get therapist by user ID - admin only
 router.get("/user/:userId", getTherapistByUserId);
 
-// Create therapist profile - only therapists and admins can create
-router.post(
-  "/",
-  authorize("admin", "therapist"),
-  createTherapistValidation,
-  createTherapist
-);
+// Create therapist profile - admin only
+router.post("/", createTherapistValidation, createTherapist);
 
-// Update and delete therapist profile
+// Update and delete therapist profile - admin only
 router
   .route("/:id")
-  .put(
-    authorize("admin", "therapist"),
-    updateTherapistValidation,
-    updateTherapist
-  )
-  .delete(authorize("admin"), deleteTherapist);
-
-// Add new route to get available therapists with their availability
-router.get("/available", getAvailableTherapists);
+  .put(updateTherapistValidation, updateTherapist)
+  .delete(deleteTherapist);
 
 module.exports = router;

@@ -12,32 +12,29 @@ const {
 } = require("../controllers/jobController");
 
 const {
-  createApplication,
   getJobApplications,
-  createApplicationValidation,
 } = require("../controllers/jobApplicationController");
 
 const router = express.Router();
 
-// Public routes
+// Public routes - no authentication required
 router.get("/", getJobs);
 router.get("/:id", getJob);
 router.get("/department/:department", getJobsByDepartment);
 
-// Protected routes
-router.use(protect);
+// Note: job applications are now handled in publicJobController
 
-// Admin routes
-router.post("/", authorize("admin"), createJobValidation, createJob);
-
-router.put("/:id", authorize("admin"), updateJobValidation, updateJob);
-
-router.delete("/:id", authorize("admin"), deleteJob);
+// Admin routes - still require authentication
+router.post("/", protect, authorize("admin"), createJobValidation, createJob);
+router.put("/:id", protect, authorize("admin"), updateJobValidation, updateJob);
+router.delete("/:id", protect, authorize("admin"), deleteJob);
 
 // Get applications for a specific job (admin only)
-router.get("/:jobId/applications", authorize("admin"), getJobApplications);
-
-// Apply for a job - modified to remove the resume upload middleware
-router.post("/:jobId/apply", createApplicationValidation, createApplication);
+router.get(
+  "/:jobId/applications",
+  protect,
+  authorize("admin"),
+  getJobApplications
+);
 
 module.exports = router;

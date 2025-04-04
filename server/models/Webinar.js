@@ -4,27 +4,33 @@ const WebinarSchema = new mongoose.Schema(
   {
     title: {
       type: String,
+      required: [true, "Please add a title"],
       trim: true,
     },
     speaker: {
       type: String,
+      required: [true, "Please add a speaker name"],
     },
     date: {
       type: Date,
+      required: [true, "Please add a date"],
     },
     duration: {
       type: Number, // Duration in minutes
+      required: [true, "Please add a duration"],
     },
     startTime: {
       type: String,
+      required: [true, "Please add a start time"],
     },
     maxRegistrations: {
       type: Number,
+      default: 100,
     },
     status: {
       type: String,
-      enum: ["scheduled", "live", "completed", "cancelled"],
-      default: "scheduled",
+      enum: ["upcoming", "live", "completed", "cancelled"],
+      default: "upcoming",
     },
     url: {
       type: String,
@@ -32,47 +38,17 @@ const WebinarSchema = new mongoose.Schema(
     thumbnail: {
       type: String,
     },
-    registeredUsers: [
-      {
-        user: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        registeredAt: {
-          type: Date,
-          default: Date.now,
-        },
-        attended: {
-          type: Boolean,
-          default: false,
-        },
-      },
-    ],
-    ratings: [
-      {
-        rating: {
-          type: Number,
-          min: 1,
-          max: 5,
-        },
-        comment: String,
-        user: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    averageRating: {
-      type: Number,
-      min: 1,
-      max: 5,
-    },
     description: {
       type: String,
+      required: [true, "Please add a description"],
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
+    participantsCount: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -82,26 +58,13 @@ const WebinarSchema = new mongoose.Schema(
   }
 );
 
-// Calculate average rating when ratings are modified
-WebinarSchema.pre("save", function (next) {
-  if (this.ratings && this.ratings.length > 0) {
-    this.averageRating =
-      this.ratings.reduce((total, rating) => total + rating.rating, 0) /
-      this.ratings.length;
-  } else {
-    this.averageRating = undefined;
-  }
-  next();
-});
-
-// Virtual for number of registrations
-WebinarSchema.virtual("registrationCount").get(function () {
-  return this.registeredUsers ? this.registeredUsers.length : 0;
-});
-
 // Virtual for available slots
 WebinarSchema.virtual("availableSlots").get(function () {
-  return this.maxRegistrations - this.registrationCount;
+  return this.maxRegistrations - this.participantsCount;
 });
+
+// Index for efficient queries
+WebinarSchema.index({ status: 1, date: 1 });
+WebinarSchema.index({ date: 1 }); // For date-based sorting and filtering
 
 module.exports = mongoose.model("Webinar", WebinarSchema);

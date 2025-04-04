@@ -4,7 +4,7 @@ const {
   getCategories,
   getCategoryTree,
   getCategory,
-  getCategoryBySlug,
+  getCategoryByName,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -19,7 +19,7 @@ const router = express.Router();
 // Public routes
 router.get("/", getCategories);
 router.get("/tree", getCategoryTree);
-router.get("/slug/:slug", getCategoryBySlug);
+router.get("/name/:name", getCategoryByName);
 router.get("/:id", getCategory);
 
 // Protected routes

@@ -13,18 +13,18 @@ const {
 
 const router = express.Router();
 
-// All transaction routes are protected
-router.use(protect);
+// All transaction routes are protected and admin-only
+router.use(protect, authorize("admin"));
 
-// Routes for all authenticated users
-router.get("/user", getUserTransactions);
-router.get("/:id", getTransaction);
-
-// Routes for admins
-router.use(authorize("admin"));
+// Admin only routes
 router.get("/", getTransactions);
+router.get("/user/:userId", getUserTransactions);
+router.get("/:id", getTransaction);
 router.post("/", createTransactionValidation, createTransaction);
 router.put("/:id", updateTransactionValidation, updateTransaction);
 router.post("/:id/refund", processRefund);
+
+// No longer needed as we're making all routes admin-only
+// router.get("/user", getUserTransactions);
 
 module.exports = router;

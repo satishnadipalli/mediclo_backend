@@ -1,4 +1,5 @@
 const Webinar = require("../models/Webinar");
+const WebinarRegistration = require("../models/WebinarRegistration");
 const ErrorResponse = require("../utils/errorResponse");
 const { body, param, validationResult } = require("express-validator");
 
@@ -24,7 +25,7 @@ exports.validateWebinar = [
     .withMessage("Maximum registrations must be at least 1"),
   body("status")
     .optional()
-    .isIn(["scheduled", "live", "completed", "cancelled"])
+    .isIn(["upcoming", "live", "completed", "cancelled"])
     .withMessage("Invalid status value"),
   body("url").notEmpty().withMessage("Please add a webinar URL"),
   body("thumbnail").notEmpty().withMessage("Please upload a webinar thumbnail"),
@@ -43,13 +44,12 @@ exports.validateWebinar = [
   },
 ];
 
-exports.validateWebinarRating = [
-  body("rating")
+exports.validateWebinarStatus = [
+  body("status")
     .notEmpty()
-    .withMessage("Please provide a rating")
-    .isInt({ min: 1, max: 5 })
-    .withMessage("Rating must be between 1 and 5"),
-  body("comment").notEmpty().withMessage("Please provide a comment"),
+    .withMessage("Please provide a status")
+    .isIn(["upcoming", "live", "completed", "cancelled"])
+    .withMessage("Invalid status value"),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -62,22 +62,17 @@ exports.validateWebinarRating = [
   },
 ];
 
-exports.validateWebinarStatus = [
-  body("status")
+// Validation for public webinar registration
+exports.validatePublicRegistration = [
+  body("name").notEmpty().withMessage("Name is required"),
+  body("email")
     .notEmpty()
-    .withMessage("Please provide a status")
-    .isIn(["scheduled", "live", "completed", "cancelled"])
-    .withMessage("Invalid status value"),
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      });
-    }
-    next();
-  },
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Please provide a valid email address"),
+  body("phone").optional(),
+  body("occupation").optional(),
+  body("organization").optional(),
 ];
 
 // @desc    Get all webinars
@@ -171,7 +166,7 @@ exports.getUpcomingWebinars = async (req, res, next) => {
     // Finding upcoming webinars with available slots
     const webinars = await Webinar.find({
       date: { $gte: today },
-      status: { $in: ["scheduled"] },
+      status: "upcoming",
     }).sort("date");
 
     res.status(200).json({
@@ -262,90 +257,10 @@ exports.deleteWebinar = async (req, res, next) => {
       );
     }
 
+    // Also delete registrations when deleting webinar
+    await WebinarRegistration.deleteMany({ webinarId: req.params.id });
+
     await webinar.remove();
-
-    res.status(200).json({
-      success: true,
-      data: {},
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Register for webinar
-// @route   POST /api/webinars/:id/register
-// @access  Private
-exports.registerForWebinar = async (req, res, next) => {
-  try {
-    const webinar = await Webinar.findById(req.params.id);
-
-    if (!webinar) {
-      return next(
-        new ErrorResponse(`Webinar not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Check if webinar is full
-    if (webinar.registeredUsers.length >= webinar.maxRegistrations) {
-      return next(new ErrorResponse(`Webinar registration is full`, 400));
-    }
-
-    // Check if user is already registered
-    const alreadyRegistered = webinar.registeredUsers.some(
-      (registration) => registration.user.toString() === req.user.id
-    );
-
-    if (alreadyRegistered) {
-      return next(
-        new ErrorResponse(`You are already registered for this webinar`, 400)
-      );
-    }
-
-    // Add user to registeredUsers array
-    webinar.registeredUsers.push({
-      user: req.user.id,
-      registeredAt: Date.now(),
-    });
-
-    await webinar.save();
-
-    res.status(200).json({
-      success: true,
-      data: webinar,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Cancel registration for webinar
-// @route   DELETE /api/webinars/:id/register
-// @access  Private
-exports.cancelRegistration = async (req, res, next) => {
-  try {
-    const webinar = await Webinar.findById(req.params.id);
-
-    if (!webinar) {
-      return next(
-        new ErrorResponse(`Webinar not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Find registration index
-    const registrationIndex = webinar.registeredUsers.findIndex(
-      (registration) => registration.user.toString() === req.user.id
-    );
-
-    if (registrationIndex === -1) {
-      return next(
-        new ErrorResponse(`You are not registered for this webinar`, 400)
-      );
-    }
-
-    // Remove registration from array
-    webinar.registeredUsers.splice(registrationIndex, 1);
-    await webinar.save();
 
     res.status(200).json({
       success: true,
@@ -361,7 +276,7 @@ exports.cancelRegistration = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateWebinarStatus = async (req, res, next) => {
   try {
-    let webinar = await Webinar.findById(req.params.id);
+    const webinar = await Webinar.findById(req.params.id);
 
     if (!webinar) {
       return next(
@@ -381,36 +296,10 @@ exports.updateWebinarStatus = async (req, res, next) => {
   }
 };
 
-// @desc    Get registered users for webinar
+// @desc    Get webinar registrations
 // @route   GET /api/webinars/:id/registrations
 // @access  Private/Admin
 exports.getWebinarRegistrations = async (req, res, next) => {
-  try {
-    const webinar = await Webinar.findById(req.params.id).populate({
-      path: "registeredUsers.user",
-      select: "firstName lastName email",
-    });
-
-    if (!webinar) {
-      return next(
-        new ErrorResponse(`Webinar not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    res.status(200).json({
-      success: true,
-      count: webinar.registeredUsers.length,
-      data: webinar.registeredUsers,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Add rating to webinar
-// @route   POST /api/webinars/:id/ratings
-// @access  Private
-exports.addWebinarRating = async (req, res, next) => {
   try {
     const webinar = await Webinar.findById(req.params.id);
 
@@ -420,44 +309,117 @@ exports.addWebinarRating = async (req, res, next) => {
       );
     }
 
-    // Check if user is registered for the webinar
-    const isRegistered = webinar.registeredUsers.some(
-      (registration) => registration.user.toString() === req.user.id
-    );
-
-    if (!isRegistered) {
-      return next(
-        new ErrorResponse(
-          `You must be registered for the webinar to rate it`,
-          400
-        )
-      );
-    }
-
-    // Check if user already rated the webinar
-    const existingRating = webinar.ratings.find(
-      (rating) => rating.user.toString() === req.user.id
-    );
-
-    if (existingRating) {
-      return next(
-        new ErrorResponse(`You have already rated this webinar`, 400)
-      );
-    }
-
-    // Add rating to ratings array
-    const ratingData = {
-      rating: req.body.rating,
-      comment: req.body.comment,
-      user: req.user.id,
-    };
-
-    webinar.ratings.push(ratingData);
-    await webinar.save();
+    const registrations = await WebinarRegistration.find({
+      webinarId: req.params.id,
+    }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
-      data: webinar,
+      count: registrations.length,
+      data: registrations,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Register for webinar (public)
+// @route   POST /api/webinars/public/register/:id
+// @access  Public
+exports.registerPublicForWebinar = async (req, res) => {
+  try {
+    const { name, email, phone, occupation, organization } = req.body;
+    const webinarId = req.params.id;
+
+    // Check if webinar exists and is upcoming
+    const webinar = await Webinar.findById(webinarId);
+    if (!webinar) {
+      return res.status(404).json({
+        success: false,
+        error: "Webinar not found",
+      });
+    }
+
+    if (webinar.status !== "upcoming") {
+      return res.status(400).json({
+        success: false,
+        error: "This webinar is no longer open for registration",
+      });
+    }
+
+    // Check if webinar has reached maximum registrations
+    if (webinar.participantsCount >= webinar.maxRegistrations) {
+      return res.status(400).json({
+        success: false,
+        error: "This webinar has reached maximum capacity",
+      });
+    }
+
+    // Check if the email is already registered
+    const existingRegistration = await WebinarRegistration.findOne({
+      webinarId,
+      email,
+    });
+
+    if (existingRegistration) {
+      return res.status(400).json({
+        success: false,
+        error: "You have already registered for this webinar",
+      });
+    }
+
+    // Create the registration
+    const registration = await WebinarRegistration.create({
+      webinarId,
+      name,
+      email,
+      phone: phone || "",
+      occupation: occupation || "",
+      organization: organization || "",
+      status: "registered",
+    });
+
+    // Increment participants count
+    webinar.participantsCount = (webinar.participantsCount || 0) + 1;
+    await webinar.save();
+
+    // Send successful response
+    res.status(201).json({
+      success: true,
+      message: "Thank you for registering! Details will be sent to your email.",
+      reference: registration._id,
+    });
+  } catch (err) {
+    console.error("Error registering for webinar:", err);
+    res.status(500).json({
+      success: false,
+      error:
+        "We couldn't process your registration. Please try again or contact us directly.",
+    });
+  }
+};
+
+// @desc    Mark registration as attended
+// @route   PUT /api/webinars/:webinarId/registrations/:id/attend
+// @access  Private/Admin
+exports.markAttendance = async (req, res, next) => {
+  try {
+    const registration = await WebinarRegistration.findOne({
+      _id: req.params.id,
+      webinarId: req.params.webinarId,
+    });
+
+    if (!registration) {
+      return next(new ErrorResponse(`Registration not found`, 404));
+    }
+
+    registration.attended = true;
+    registration.status = "attended";
+    await registration.save();
+
+    res.status(200).json({
+      success: true,
+      data: registration,
     });
   } catch (err) {
     next(err);

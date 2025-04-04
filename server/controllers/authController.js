@@ -10,9 +10,12 @@ exports.registerValidation = [
   }),
   body("firstName", "First name is required").notEmpty(),
   body("lastName", "Last name is required").notEmpty(),
-  body("role", "Role must be admin, therapist, parent, staff, or receptionist")
+  body("role", "Role must be admin, therapist, receptionist, or staff")
     .optional()
-    .isIn(["admin", "therapist", "parent", "staff", "receptionist"]),
+    .isIn(["admin", "therapist", "staff", "receptionist"])
+    .withMessage(
+      "Invalid role specified - role must be admin, therapist, staff, or receptionist"
+    ),
 ];
 
 exports.loginValidation = [
@@ -36,7 +39,7 @@ exports.changePasswordValidation = [
 
 // @desc    Register user
 // @route   POST /api/auth/register
-// @access  Public
+// @access  Admin only
 exports.register = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -50,13 +53,24 @@ exports.register = async (req, res, next) => {
 
     const { email, password, firstName, lastName, role, phone } = req.body;
 
+    // Default role is receptionist unless specified otherwise
+    let userRole = "receptionist";
+
+    // If role is specified and valid, use that role
+    if (
+      role &&
+      ["admin", "therapist", "staff", "receptionist"].includes(role)
+    ) {
+      userRole = role;
+    }
+
     // Create user
     const user = await User.create({
       email,
       password,
       firstName,
       lastName,
-      role,
+      role: userRole,
       phone,
     });
 
@@ -81,7 +95,7 @@ exports.register = async (req, res, next) => {
 
 // @desc    Login user
 // @route   POST /api/auth/login
-// @access  Public
+// @access  Staff only
 exports.login = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -102,6 +116,14 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         error: "Invalid credentials",
+      });
+    }
+
+    // Verify user has appropriate role
+    if (!["admin", "therapist", "receptionist", "staff"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized access. Only staff members can login.",
       });
     }
 

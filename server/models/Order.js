@@ -9,7 +9,24 @@ const OrderSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+    },
+    isPublicSubmission: {
+      type: Boolean,
+      default: false,
+    },
+    customerInfo: {
+      firstName: {
+        type: String,
+      },
+      lastName: {
+        type: String,
+      },
+      email: {
+        type: String,
+      },
+      phone: {
+        type: String,
+      },
     },
     items: [
       {
@@ -82,7 +99,7 @@ const OrderSchema = new mongoose.Schema(
     },
     shippingMethod: {
       type: String,
-      default: "Standard"
+      default: "Standard",
     },
     subtotal: {
       type: Number,
@@ -146,15 +163,15 @@ const OrderSchema = new mongoose.Schema(
 // Generate order number before saving
 OrderSchema.pre("save", async function (next) {
   if (!this.orderNumber) {
-    const count = await this.constructor.countDocuments();
     const date = new Date();
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 7).toUpperCase();
     this.orderNumber = `ORD-${date.getFullYear()}${(date.getMonth() + 1)
       .toString()
-      .padStart(2, "0")}${date.getDate().toString().padStart(2, "0")}-${(
-      count + 1
-    )
+      .padStart(2, "0")}${date
+      .getDate()
       .toString()
-      .padStart(4, "0")}`;
+      .padStart(2, "0")}-${randomStr}`;
   }
   this.updatedAt = Date.now();
   next();
@@ -172,6 +189,8 @@ OrderSchema.index({ user: 1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ paymentStatus: 1 });
 OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ isPublicSubmission: 1 });
+OrderSchema.index({ "customerInfo.email": 1 });
 // orderNumber is already indexed through unique: true in schema
 
 module.exports = mongoose.model("Order", OrderSchema);

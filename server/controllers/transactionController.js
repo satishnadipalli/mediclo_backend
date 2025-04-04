@@ -148,12 +148,17 @@ exports.getTransactions = async (req, res, next) => {
   }
 };
 
-// @desc    Get user transactions
-// @route   GET /api/transactions/user
-// @access  Private
+// @desc    Get transactions by user ID
+// @route   GET /api/transactions/user/:userId
+// @access  Private/Admin
 exports.getUserTransactions = async (req, res, next) => {
   try {
-    const transactions = await Transaction.find({ user: req.user.id })
+    // Admin can retrieve transactions for any user
+    if (!req.params.userId) {
+      return next(new ErrorResponse("Please provide a user ID", 400));
+    }
+
+    const transactions = await Transaction.find({ user: req.params.userId })
       .populate({
         path: "order",
         select: "orderNumber total",
@@ -172,7 +177,7 @@ exports.getUserTransactions = async (req, res, next) => {
 
 // @desc    Get single transaction
 // @route   GET /api/transactions/:id
-// @access  Private
+// @access  Private/Admin
 exports.getTransaction = async (req, res, next) => {
   try {
     const transaction = await Transaction.findById(req.params.id)
@@ -191,16 +196,6 @@ exports.getTransaction = async (req, res, next) => {
           `Transaction not found with id of ${req.params.id}`,
           404
         )
-      );
-    }
-
-    // Make sure user is transaction owner or admin
-    if (
-      transaction.user._id.toString() !== req.user.id &&
-      req.user.role !== "admin"
-    ) {
-      return next(
-        new ErrorResponse("Not authorized to access this transaction", 403)
       );
     }
 

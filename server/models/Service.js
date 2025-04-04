@@ -12,6 +12,10 @@ const ServiceSchema = new mongoose.Schema(
       type: String,
       required: [true, "Please add a description"],
     },
+    detailedContent: {
+      type: String,
+      default: "",
+    },
     category: {
       type: String,
       required: [true, "Please add a category"],

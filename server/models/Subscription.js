@@ -5,12 +5,15 @@ const SubscriptionSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: false,
     },
     name: {
       type: String,
+      required: [true, "Please add a name"],
     },
     email: {
       type: String,
+      required: [true, "Please add an email"],
       match: [
         /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
         "Please add a valid email",
@@ -18,13 +21,16 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
+      required: [true, "Please add a phone number"],
     },
     plan: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SubscriptionPlan",
+      required: [true, "Please add a subscription plan"],
     },
     currentTier: {
       type: String,
+      required: [true, "Please add current tier"],
     },
     startDate: {
       type: Date,
@@ -32,9 +38,11 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     endDate: {
       type: Date,
+      required: [true, "Please add end date"],
     },
     nextRenewalDate: {
       type: Date,
+      required: [true, "Please add next renewal date"],
     },
     paymentStatus: {
       type: String,

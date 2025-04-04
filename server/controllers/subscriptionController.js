@@ -6,7 +6,7 @@ const { body, param, validationResult } = require("express-validator");
 
 // Validation middleware
 exports.validateSubscription = [
-  body("user").notEmpty().withMessage("Please select a user"),
+  body("user").optional(),
   body("name").notEmpty().withMessage("Please add a name"),
   body("email")
     .notEmpty()
@@ -14,7 +14,7 @@ exports.validateSubscription = [
     .isEmail()
     .withMessage("Please add a valid email"),
   body("plan").notEmpty().withMessage("Please select a plan"),
-  body("currentTier").notEmpty().withMessage("Please add current tier"),
+  body("currentTier").optional(),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -50,6 +50,28 @@ exports.validateSubscriptionPlan = [
     .optional()
     .isIn(["active", "inactive"])
     .withMessage("Invalid status value"),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
+// Validation middleware for public subscription
+exports.validatePublicSubscription = [
+  body("email")
+    .notEmpty()
+    .withMessage("Please add an email")
+    .isEmail()
+    .withMessage("Please add a valid email"),
+  body("name").notEmpty().withMessage("Please provide your full name"),
+  body("phone").notEmpty().withMessage("Please provide your phone number"),
+  body("planId").notEmpty().withMessage("Please select a subscription plan"),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -147,32 +169,6 @@ exports.getSubscriptions = async (req, res, next) => {
   }
 };
 
-// @desc    Get my subscription
-// @route   GET /api/subscriptions/me
-// @access  Private
-exports.getMySubscription = async (req, res, next) => {
-  try {
-    const subscription = await Subscription.findOne({
-      user: req.user.id,
-      isActive: true,
-    }).populate("plan");
-
-    if (!subscription) {
-      return res.status(200).json({
-        success: true,
-        data: null,
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: subscription,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // @desc    Get single subscription
 // @route   GET /api/subscriptions/:id
 // @access  Private/Admin
@@ -219,24 +215,42 @@ exports.createSubscription = async (req, res, next) => {
       );
     }
 
-    // Check if user exists
-    const user = await User.findById(req.body.user);
-    if (!user) {
-      return next(
-        new ErrorResponse(`User not found with id of ${req.body.user}`, 404)
-      );
-    }
+    // Only check user if provided
+    if (req.body.user) {
+      // Check if user exists
+      const user = await User.findById(req.body.user);
+      if (!user) {
+        return next(
+          new ErrorResponse(`User not found with id of ${req.body.user}`, 404)
+        );
+      }
 
-    // Check if user already has an active subscription
-    const existingSubscription = await Subscription.findOne({
-      user: req.body.user,
-      isActive: true,
-    });
+      // Check if user already has an active subscription
+      const existingSubscription = await Subscription.findOne({
+        user: req.body.user,
+        isActive: true,
+      });
 
-    if (existingSubscription) {
-      return next(
-        new ErrorResponse(`User already has an active subscription`, 400)
-      );
+      if (existingSubscription) {
+        return next(
+          new ErrorResponse(`User already has an active subscription`, 400)
+        );
+      }
+    } else {
+      // If no user, check if email already has an active subscription
+      const existingSubscription = await Subscription.findOne({
+        email: req.body.email,
+        isActive: true,
+      });
+
+      if (existingSubscription) {
+        return next(
+          new ErrorResponse(
+            `This email already has an active subscription`,
+            400
+          )
+        );
+      }
     }
 
     // Calculate end date and next renewal date based on billing cycle
@@ -268,14 +282,21 @@ exports.createSubscription = async (req, res, next) => {
         nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
     }
 
-    // Create subscription
-    const subscription = await Subscription.create({
+    // Add grace period days to end date if it exists
+    if (plan.gracePeriod) {
+      endDate.setDate(endDate.getDate() + plan.gracePeriod);
+    }
+
+    // Create subscription with current tier if not provided
+    const subscriptionData = {
       ...req.body,
       startDate,
       endDate,
       nextRenewalDate,
-      currentTier: plan.name,
-    });
+      currentTier: req.body.currentTier || plan.name,
+    };
+
+    const subscription = await Subscription.create(subscriptionData);
 
     res.status(201).json({
       success: true,
@@ -341,49 +362,6 @@ exports.deleteSubscription = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {},
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Cancel subscription
-// @route   PUT /api/subscriptions/:id/cancel
-// @access  Private
-exports.cancelSubscription = async (req, res, next) => {
-  try {
-    const subscription = await Subscription.findById(req.params.id);
-
-    if (!subscription) {
-      return next(
-        new ErrorResponse(
-          `Subscription not found with id of ${req.params.id}`,
-          404
-        )
-      );
-    }
-
-    // Make sure user is subscription owner or admin
-    if (
-      subscription.user.toString() !== req.user.id &&
-      req.user.role !== "admin"
-    ) {
-      return next(
-        new ErrorResponse(
-          `User ${req.user.id} is not authorized to cancel this subscription`,
-          401
-        )
-      );
-    }
-
-    // Update subscription
-    subscription.autoRenew = false;
-    subscription.paymentStatus = "cancelled";
-    await subscription.save();
-
-    res.status(200).json({
-      success: true,
-      data: subscription,
     });
   } catch (err) {
     next(err);
@@ -468,14 +446,8 @@ exports.renewSubscription = async (req, res, next) => {
 // @access  Public
 exports.getSubscriptionPlans = async (req, res, next) => {
   try {
-    let query = {};
-
-    // If not admin, only show active plans
-    if (!req.user || req.user.role !== "admin") {
-      query = {
-        status: "active",
-      };
-    }
+    // Only show active plans to public
+    const query = { status: "active" };
 
     const plans = await SubscriptionPlan.find(query).sort("order");
 
@@ -596,6 +568,181 @@ exports.deleteSubscriptionPlan = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {},
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Create a subscription for public user (no login required)
+// @route   POST /api/subscriptions/public
+// @access  Public
+exports.createPublicSubscription = async (req, res, next) => {
+  try {
+    const { name, email, phone, planId } = req.body;
+
+    // Check if plan exists
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan) {
+      return res.status(404).json({
+        success: false,
+        error: "Subscription plan not found",
+      });
+    }
+
+    // Check if email already has an active subscription
+    const existingSubscription = await Subscription.findOne({
+      email,
+      isActive: true,
+    });
+
+    if (existingSubscription) {
+      return res.status(400).json({
+        success: false,
+        error: "This email already has an active subscription",
+        data: {
+          planName: existingSubscription.currentTier,
+          endDate: existingSubscription.endDate,
+          daysRemaining: Math.max(
+            0,
+            Math.ceil(
+              (new Date(existingSubscription.endDate) - new Date()) /
+                (1000 * 60 * 60 * 24)
+            )
+          ),
+        },
+      });
+    }
+
+    // Calculate end date and next renewal date based on billing cycle
+    const startDate = new Date();
+    let endDate = new Date(startDate);
+    let nextRenewalDate = new Date(startDate);
+
+    switch (plan.billingCycle) {
+      case "monthly":
+        endDate.setMonth(endDate.getMonth() + 1);
+        nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
+        break;
+      case "quarterly":
+        endDate.setMonth(endDate.getMonth() + 3);
+        nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 3);
+        break;
+      case "biannual":
+        endDate.setMonth(endDate.getMonth() + 6);
+        nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 6);
+        break;
+      case "annual":
+        endDate.setFullYear(endDate.getFullYear() + 1);
+        nextRenewalDate.setFullYear(nextRenewalDate.getFullYear() + 1);
+        break;
+      default:
+        endDate.setMonth(endDate.getMonth() + 1);
+        nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
+    }
+
+    // Add grace period days to end date
+    if (plan.gracePeriod) {
+      endDate.setDate(endDate.getDate() + plan.gracePeriod);
+    }
+
+    // Create subscription
+    const subscription = await Subscription.create({
+      name,
+      email,
+      phone,
+      plan: planId,
+      startDate,
+      endDate,
+      nextRenewalDate,
+      currentTier: plan.name,
+      paymentStatus: "paid", // Assuming payment is successful
+      isActive: true,
+      autoRenew: true,
+      paymentHistory: [
+        {
+          amount: plan.price,
+          status: "successful",
+          paymentMethod: "card", // Placeholder for payment method
+          date: Date.now(),
+        },
+      ],
+    });
+
+    // Generate a simplified response object
+    const subscriptionDetails = {
+      name,
+      email,
+      planName: plan.name,
+      price: plan.price,
+      billingCycle: plan.billingCycle,
+      startDate: subscription.startDate,
+      endDate: subscription.endDate,
+      features: plan.features,
+      gracePeriod: plan.gracePeriod || 0,
+      daysRemaining: Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24)),
+    };
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully subscribed to ${
+        plan.name
+      } plan. Your subscription is valid until ${endDate.toLocaleDateString()}.`,
+      data: subscriptionDetails,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Check subscription status by email
+// @route   GET /api/subscriptions/check/:email
+// @access  Public
+exports.checkSubscriptionByEmail = async (req, res, next) => {
+  try {
+    const email = req.params.email;
+
+    // Validate email format
+    if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide a valid email address",
+      });
+    }
+
+    const subscription = await Subscription.findOne({
+      email,
+      isActive: true,
+    }).populate("plan");
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        error: "No active subscription found for this email",
+      });
+    }
+
+    // Prepare response data with relevant info only
+    const subscriptionData = {
+      name: subscription.name,
+      email: subscription.email,
+      planName: subscription.currentTier,
+      startDate: subscription.startDate,
+      endDate: subscription.endDate,
+      isExpired: new Date() > subscription.endDate,
+      daysRemaining: Math.max(
+        0,
+        Math.ceil(
+          (new Date(subscription.endDate) - new Date()) / (1000 * 60 * 60 * 24)
+        )
+      ),
+      status: subscription.paymentStatus,
+      features: subscription.plan.features,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: subscriptionData,
     });
   } catch (err) {
     next(err);

@@ -1,4 +1,6 @@
 const express = require("express");
+const router = express.Router();
+const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getCourses,
   getCourse,
@@ -7,46 +9,36 @@ const {
   deleteCourse,
   addCourseVideo,
   deleteCourseVideo,
-  addCourseRating,
-  getCourseRatings,
   updateCourseStatus,
   validateCourse,
   validateCourseVideo,
-  validateCourseRating,
   validateCourseStatus,
+  enrollPublicInCourse,
 } = require("../controllers/courseController");
 
-const { protect, authorize } = require("../middleware/authMiddleware");
-
-const router = express.Router();
-
-// Public routes
+// Public routes - no authentication required
 router.get("/", getCourses);
 router.get("/:id", getCourse);
-router.get("/:id/ratings", getCourseRatings);
+
+// Public enrollment endpoint
+router.post("/public/enroll/:id", enrollPublicInCourse);
 
 // Protected routes
 router.use(protect);
 
 // Admin only routes
-router.post("/", authorize("admin"), validateCourse, createCourse);
-router.put("/:id", authorize("admin"), validateCourse, updateCourse);
-router.delete("/:id", authorize("admin"), deleteCourse);
-router.post(
-  "/:id/videos",
-  authorize("admin"),
-  validateCourseVideo,
-  addCourseVideo
-);
-router.delete("/:id/videos/:videoId", authorize("admin"), deleteCourseVideo);
-router.put(
-  "/:id/status",
-  authorize("admin"),
-  validateCourseStatus,
-  updateCourseStatus
-);
+router.use(authorize("admin"));
 
-// User routes (require authentication)
-router.post("/:id/ratings", validateCourseRating, addCourseRating);
+// Course CRUD
+router.post("/", validateCourse, createCourse);
+router.put("/:id", validateCourse, updateCourse);
+router.delete("/:id", deleteCourse);
+
+// Course videos
+router.post("/:id/videos", validateCourseVideo, addCourseVideo);
+router.delete("/:id/videos/:videoId", deleteCourseVideo);
+
+// Course status
+router.put("/:id/status", validateCourseStatus, updateCourseStatus);
 
 module.exports = router;

@@ -1,12 +1,10 @@
 const express = require("express");
 const {
   getSubscriptions,
-  getMySubscription,
   getSubscription,
   createSubscription,
   updateSubscription,
   deleteSubscription,
-  cancelSubscription,
   renewSubscription,
   getSubscriptionPlans,
   getSubscriptionPlan,
@@ -15,6 +13,9 @@ const {
   deleteSubscriptionPlan,
   validateSubscription,
   validateSubscriptionPlan,
+  validatePublicSubscription,
+  createPublicSubscription,
+  checkSubscriptionByEmail,
 } = require("../controllers/subscriptionController");
 
 const { protect, authorize } = require("../middleware/authMiddleware");
@@ -24,38 +25,21 @@ const router = express.Router();
 // Public routes
 router.get("/plans", getSubscriptionPlans);
 router.get("/plans/:id", getSubscriptionPlan);
+router.post("/public", validatePublicSubscription, createPublicSubscription);
+router.get("/check/:email", checkSubscriptionByEmail);
 
-// Protected routes
-router.use(protect);
-
-// User routes (require authentication)
-router.get("/me", getMySubscription);
-router.put("/:id/cancel", cancelSubscription);
+// Protected admin-only routes
+router.use(protect, authorize("admin"));
 
 // Admin only routes
-router.get("/", authorize("admin"), getSubscriptions);
-router.get("/:id", authorize("admin"), getSubscription);
-router.post("/", authorize("admin"), validateSubscription, createSubscription);
-router.put(
-  "/:id",
-  authorize("admin"),
-  validateSubscription,
-  updateSubscription
-);
-router.delete("/:id", authorize("admin"), deleteSubscription);
-router.put("/:id/renew", authorize("admin"), renewSubscription);
-router.post(
-  "/plans",
-  authorize("admin"),
-  validateSubscriptionPlan,
-  createSubscriptionPlan
-);
-router.put(
-  "/plans/:id",
-  authorize("admin"),
-  validateSubscriptionPlan,
-  updateSubscriptionPlan
-);
-router.delete("/plans/:id", authorize("admin"), deleteSubscriptionPlan);
+router.get("/", getSubscriptions);
+router.get("/:id", getSubscription);
+router.post("/", validateSubscription, createSubscription);
+router.put("/:id", validateSubscription, updateSubscription);
+router.delete("/:id", deleteSubscription);
+router.put("/:id/renew", renewSubscription);
+router.post("/plans", validateSubscriptionPlan, createSubscriptionPlan);
+router.put("/plans/:id", validateSubscriptionPlan, updateSubscriptionPlan);
+router.delete("/plans/:id", deleteSubscriptionPlan);
 
 module.exports = router;

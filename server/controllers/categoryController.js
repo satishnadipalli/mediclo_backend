@@ -18,15 +18,10 @@ exports.createCategoryValidation = [
 
   check("categoryType")
     .optional()
-    .isIn(["product", "blog", "service", "other"])
-    .withMessage("Category type must be product, blog, service, or other"),
-
-  check("image").optional().isURL().withMessage("Image must be a valid URL"),
-
-  check("parent")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid parent category ID"),
+    .isIn(["Therapy Type", "Age Group", "Learning Type"])
+    .withMessage(
+      "Category type must be Therapy Type, Age Group, or Learning Type"
+    ),
 
   check("isActive")
     .optional()
@@ -100,7 +95,7 @@ exports.getCategoryTree = async (req, res, next) => {
     const parentCategories = await Category.find({ parent: null })
       .populate({
         path: "subcategories",
-        select: "name slug image",
+        select: "name",
       })
       .sort("name");
 
@@ -121,7 +116,7 @@ exports.getCategory = async (req, res, next) => {
   try {
     const category = await Category.findById(req.params.id).populate({
       path: "subcategories",
-      select: "name slug image",
+      select: "name",
     });
 
     if (!category) {
@@ -139,22 +134,23 @@ exports.getCategory = async (req, res, next) => {
   }
 };
 
-// @desc    Get category by slug
-// @route   GET /api/categories/slug/:slug
+// @desc    Get category by name
+// @route   GET /api/categories/name/:name
 // @access  Public
-exports.getCategoryBySlug = async (req, res, next) => {
+exports.getCategoryByName = async (req, res, next) => {
   try {
-    const category = await Category.findOne({ slug: req.params.slug }).populate(
-      {
-        path: "subcategories",
-        select: "name slug image",
-      }
-    );
+    const category = await Category.findOne({
+      name: req.params.name,
+      isActive: true,
+    }).populate({
+      path: "subcategories",
+      select: "name",
+    });
 
     if (!category) {
       return next(
         new ErrorResponse(
-          `Category not found with slug of ${req.params.slug}`,
+          `Category not found with name of ${req.params.name}`,
           404
         )
       );
@@ -222,7 +218,7 @@ exports.updateCategory = async (req, res, next) => {
       });
     }
 
-    let category = await Category.findById(req.params.id);
+    const category = await Category.findById(req.params.id);
 
     if (!category) {
       return next(
@@ -245,20 +241,24 @@ exports.updateCategory = async (req, res, next) => {
       // Prevent circular reference
       if (req.body.parent === req.params.id) {
         return next(
-          new ErrorResponse("Category cannot be its own parent", 400)
+          new ErrorResponse("Category cannot be a parent of itself", 400)
         );
       }
     }
 
     // Update category
-    category = await Category.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const updatedCategory = await Category.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     res.status(200).json({
       success: true,
-      data: category,
+      data: updatedCategory,
     });
   } catch (err) {
     next(err);

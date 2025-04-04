@@ -69,17 +69,14 @@ exports.addAssessmentValidation = [
 
 // @desc    Get all patients
 // @route   GET /api/patients
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.getPatients = async (req, res, next) => {
   try {
     // Add filtering based on user role
     let query = {};
 
-    // If user is a parent, only show their patients
-    if (req.user.role === "parent") {
-      query.parentId = req.user.id;
-    } else if (req.user.role === "therapist") {
-      // For therapists, get all patients who have appointments with them
+    // For therapists, get all patients who have appointments with them
+    if (req.user.role === "therapist") {
       const appointmentPatients = await Appointment.distinct("patientId", {
         therapistId: req.user._id,
       });
@@ -112,7 +109,7 @@ exports.getPatients = async (req, res, next) => {
 
 // @desc    Get single patient
 // @route   GET /api/patients/:id
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.getPatient = async (req, res, next) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -121,17 +118,6 @@ exports.getPatient = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Patient not found",
-      });
-    }
-
-    // Check if user has permission to view this patient
-    if (
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to access this patient",
       });
     }
 
@@ -199,7 +185,7 @@ exports.createPatient = async (req, res, next) => {
 
 // @desc    Update patient
 // @route   PUT /api/patients/:id
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.updatePatient = async (req, res, next) => {
   try {
     // Check validation
@@ -220,17 +206,6 @@ exports.updatePatient = async (req, res, next) => {
       });
     }
 
-    // Check if user has permission to update this patient
-    if (
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this patient",
-      });
-    }
-
     patient = await Patient.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -247,7 +222,7 @@ exports.updatePatient = async (req, res, next) => {
 
 // @desc    Delete patient
 // @route   DELETE /api/patients/:id
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.deletePatient = async (req, res, next) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -256,18 +231,6 @@ exports.deletePatient = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Patient not found",
-      });
-    }
-
-    // Only admin or the parent of the patient can delete
-    if (
-      req.user.role !== "admin" &&
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to delete this patient",
       });
     }
 
@@ -284,7 +247,7 @@ exports.deletePatient = async (req, res, next) => {
 
 // @desc    Add patient photo
 // @route   PUT /api/patients/:id/photo
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.updatePatientPhoto = async (req, res, next) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -293,17 +256,6 @@ exports.updatePatientPhoto = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Patient not found",
-      });
-    }
-
-    // Check authorization
-    if (
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this patient",
       });
     }
 
@@ -322,7 +274,7 @@ exports.updatePatientPhoto = async (req, res, next) => {
 
 // @desc    Update birth certificate
 // @route   PUT /api/patients/:id/birth-certificate
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.updateBirthCertificate = async (req, res, next) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -331,17 +283,6 @@ exports.updateBirthCertificate = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Patient not found",
-      });
-    }
-
-    // Check authorization
-    if (
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this patient",
       });
     }
 
@@ -360,7 +301,7 @@ exports.updateBirthCertificate = async (req, res, next) => {
 
 // @desc    Update aadhar card
 // @route   PUT /api/patients/:id/aadhar-card
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.updateAadharCard = async (req, res, next) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -369,17 +310,6 @@ exports.updateAadharCard = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Patient not found",
-      });
-    }
-
-    // Check authorization
-    if (
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this patient",
       });
     }
 
@@ -398,7 +328,7 @@ exports.updateAadharCard = async (req, res, next) => {
 
 // @desc    Update parent photo
 // @route   PUT /api/patients/:id/parent-photo
-// @access  Private
+// @access  Private/Admin/Therapist/Receptionist
 exports.updateParentPhoto = async (req, res, next) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -407,17 +337,6 @@ exports.updateParentPhoto = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Patient not found",
-      });
-    }
-
-    // Check authorization
-    if (
-      req.user.role === "parent" &&
-      patient.parentId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this patient",
       });
     }
 

@@ -8,19 +8,17 @@ const BlogSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, "Title cannot be more than 100 characters"],
     },
+    description: {
+      type: String,
+      maxlength: [500, "Description cannot be more than 500 characters"],
+    },
     content: {
       type: String,
       required: [true, "Please add content"],
     },
     author: {
-      userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-      },
-      name: String,
-      bio: String,
-      profilePicture: String,
+      type: String,
+      default: "Dr. Shrruti Patil, Pediatric Occupational",
     },
     category: {
       type: String,
@@ -45,34 +43,12 @@ const BlogSchema = new mongoose.Schema(
     },
     isPublished: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     publishDate: {
       type: Date,
       default: Date.now,
     },
-    views: {
-      type: Number,
-      default: 0,
-    },
-    likes: {
-      type: Number,
-      default: 0,
-    },
-    comments: [
-      {
-        userId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        name: String,
-        comment: String,
-        date: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
   },
   {
     timestamps: true,
@@ -88,23 +64,6 @@ BlogSchema.pre("save", function (next) {
       .toLowerCase()
       .replace(/[^\w ]+/g, "")
       .replace(/ +/g, "-");
-  }
-  next();
-});
-
-// Populate author details before saving
-BlogSchema.pre("save", async function (next) {
-  if (this.isModified("author.userId")) {
-    try {
-      const User = mongoose.model("User");
-      const user = await User.findById(this.author.userId);
-      if (user) {
-        this.author.name = `${user.firstName} ${user.lastName}`;
-        this.author.profilePicture = user.profilePicture;
-      }
-    } catch (err) {
-      console.error("Error populating author details:", err);
-    }
   }
   next();
 });

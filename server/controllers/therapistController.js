@@ -89,7 +89,7 @@ exports.getTherapist = async (req, res, next) => {
 
 // @desc    Create new therapist profile
 // @route   POST /api/therapists
-// @access  Private/Therapist/Admin
+// @access  Private/Admin
 exports.createTherapist = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -101,12 +101,7 @@ exports.createTherapist = async (req, res, next) => {
       });
     }
 
-    // Set userId to current user if not provided (for therapist creating own profile)
-    if (!req.body.userId) {
-      req.body.userId = req.user.id;
-    }
-
-    // Check if user exists and is a therapist
+    // Check if user exists
     const user = await User.findById(req.body.userId);
     if (!user) {
       return res.status(404).json({
@@ -140,7 +135,7 @@ exports.createTherapist = async (req, res, next) => {
 
 // @desc    Update therapist profile
 // @route   PUT /api/therapists/:id
-// @access  Private/Therapist/Admin
+// @access  Private/Admin
 exports.updateTherapist = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -158,17 +153,6 @@ exports.updateTherapist = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: "Therapist not found",
-      });
-    }
-
-    // Check if user has permission to update this therapist profile
-    if (
-      req.user.role !== "admin" &&
-      therapist.userId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to update this therapist profile",
       });
     }
 
@@ -213,7 +197,7 @@ exports.deleteTherapist = async (req, res, next) => {
 
 // @desc    Get therapist by user ID
 // @route   GET /api/therapists/user/:userId
-// @access  Private
+// @access  Private/Admin
 exports.getTherapistByUserId = async (req, res, next) => {
   try {
     const therapist = await Therapist.findOne({
@@ -255,14 +239,9 @@ exports.getAvailableTherapists = async (req, res) => {
     }
 
     // Find all therapists matching the query
-    const therapists = await User.find(query)
-      .select(
-        "firstName lastName specialty profilePicture bio experience availability"
-      )
-      .populate({
-        path: "ratings",
-        select: "rating comment",
-      });
+    const therapists = await User.find(query).select(
+      "firstName lastName specialty profilePicture bio experience availability"
+    );
 
     // If date is provided, filter out therapists with no availability on that date
     let filteredTherapists = therapists;
@@ -338,19 +317,9 @@ exports.getAvailableTherapists = async (req, res) => {
 
         therapistData.availableTimeSlots = timeSlots;
 
-        // Calculate average rating
-        if (therapistData.ratings && therapistData.ratings.length > 0) {
-          const totalRating = therapistData.ratings.reduce(
-            (sum, rating) => sum + rating.rating,
-            0
-          );
-          therapistData.averageRating =
-            totalRating / therapistData.ratings.length;
-          therapistData.ratingCount = therapistData.ratings.length;
-        } else {
-          therapistData.averageRating = 0;
-          therapistData.ratingCount = 0;
-        }
+        // Remove ratings calculation
+        therapistData.averageRating = 0;
+        therapistData.ratingCount = 0;
 
         return therapistData;
       });

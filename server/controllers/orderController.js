@@ -1,74 +1,11 @@
 const { validationResult, check } = require("express-validator");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
-const Inventory = require("../models/Inventory");
 const Discount = require("../models/Discount");
 const Transaction = require("../models/Transaction");
-const Shipping = require("../models/Shipping");
 const ErrorResponse = require("../utils/errorResponse");
 
-// Validation rules
-exports.createOrderValidation = [
-  check("items")
-    .notEmpty()
-    .withMessage("Items are required")
-    .isArray()
-    .withMessage("Items must be an array"),
-
-  check("items.*.product")
-    .notEmpty()
-    .withMessage("Product ID is required")
-    .isMongoId()
-    .withMessage("Invalid product ID"),
-
-  check("items.*.quantity")
-    .notEmpty()
-    .withMessage("Quantity is required")
-    .isInt({ min: 1 })
-    .withMessage("Quantity must be at least 1"),
-
-  check("shippingAddress.firstName")
-    .notEmpty()
-    .withMessage("First name is required"),
-
-  check("shippingAddress.lastName")
-    .notEmpty()
-    .withMessage("Last name is required"),
-
-  check("shippingAddress.address1")
-    .notEmpty()
-    .withMessage("Address is required"),
-
-  check("shippingAddress.city").notEmpty().withMessage("City is required"),
-
-  check("shippingAddress.state").notEmpty().withMessage("State is required"),
-
-  check("shippingAddress.postalCode")
-    .notEmpty()
-    .withMessage("Postal code is required"),
-
-  check("shippingAddress.country")
-    .notEmpty()
-    .withMessage("Country is required"),
-
-  check("paymentMethod").notEmpty().withMessage("Payment method is required"),
-
-  check("shippingMethod")
-    .notEmpty()
-    .withMessage("Shipping method is required")
-    .isMongoId()
-    .withMessage("Invalid shipping method ID"),
-
-  check("discount.code")
-    .optional()
-    .isString()
-    .withMessage("Discount code must be a string"),
-];
-
-exports.updateOrderValidation = [
-  // Add validation rules here
-];
-
+// Validation rules - keep only those needed for admin functions
 exports.updateOrderStatusValidation = [
   check("status")
     .notEmpty()
@@ -109,6 +46,40 @@ exports.refundOrderValidation = [
     .optional()
     .isBoolean()
     .withMessage("isFullRefund must be a boolean"),
+];
+
+// Validation for public order submission
+exports.validatePublicOrder = [
+  check("firstName").notEmpty().withMessage("First name is required"),
+  check("lastName").notEmpty().withMessage("Last name is required"),
+  check("email")
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Please provide a valid email address"),
+  check("phone").notEmpty().withMessage("Phone number is required"),
+  check("address1").notEmpty().withMessage("Address is required"),
+  check("city").notEmpty().withMessage("City is required"),
+  check("state").notEmpty().withMessage("State is required"),
+  check("postalCode").notEmpty().withMessage("Postal code is required"),
+  check("country").notEmpty().withMessage("Country is required"),
+  check("items")
+    .notEmpty()
+    .withMessage("Order items are required")
+    .isArray()
+    .withMessage("Items must be an array"),
+  check("items.*.productId")
+    .notEmpty()
+    .withMessage("Product ID is required")
+    .isMongoId()
+    .withMessage("Invalid product ID"),
+  check("items.*.quantity")
+    .notEmpty()
+    .withMessage("Quantity is required")
+    .isInt({ min: 1 })
+    .withMessage("Quantity must be at least 1"),
+  check("paymentMethod").optional(),
+  check("discountCode").optional(),
 ];
 
 // @desc    Get all orders
@@ -192,34 +163,12 @@ exports.getOrders = async (req, res, next) => {
   }
 };
 
-// @desc    Get user orders
-// @route   GET /api/orders/user
-// @access  Private
-exports.getUserOrders = async (req, res, next) => {
-  try {
-    const orders = await Order.find({ user: req.user.id }).sort("-createdAt");
-
-    res.status(200).json({
-      success: true,
-      count: orders.length,
-      data: orders,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // @desc    Get single order
 // @route   GET /api/orders/:id
-// @access  Private
+// @access  Private/Admin
 exports.getOrder = async (req, res, next) => {
   try {
-    const order = await Order.findById(req.params.id)
-      .populate({
-        path: "user",
-        select: "name email",
-      })
-      .populate("transactions");
+    const order = await Order.findById(req.params.id).populate("transactions");
 
     if (!order) {
       return next(
@@ -227,225 +176,7 @@ exports.getOrder = async (req, res, next) => {
       );
     }
 
-    // Make sure user is order owner or admin
-    if (
-      order.user._id.toString() !== req.user.id &&
-      req.user.role !== "admin"
-    ) {
-      return next(
-        new ErrorResponse("Not authorized to access this order", 403)
-      );
-    }
-
     res.status(200).json({
-      success: true,
-      data: order,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Create new order
-// @route   POST /api/orders
-// @access  Private
-exports.createOrder = async (req, res, next) => {
-  try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      });
-    }
-
-    // Add user to req.body
-    req.body.user = req.user.id;
-
-    // Validate items and calculate subtotal
-    let subtotal = 0;
-    const items = [];
-
-    for (const item of req.body.items) {
-      // Check if product exists
-      const product = await Product.findById(item.product);
-      if (!product) {
-        return next(
-          new ErrorResponse(`Product not found with id of ${item.product}`, 404)
-        );
-      }
-
-      // Check if product is in stock
-      const inventory = await Inventory.findOne({ product: item.product });
-      if (!inventory || inventory.quantity < item.quantity) {
-        return next(
-          new ErrorResponse(
-            `Product ${product.name} is out of stock or has insufficient quantity`,
-            400
-          )
-        );
-      }
-
-      // Add product details to item
-      const orderItem = {
-        product: product._id,
-        name: product.name,
-        price:
-          product.discountedPrice > 0 ? product.discountedPrice : product.price,
-        quantity: item.quantity,
-        image:
-          product.images.length > 0
-            ? product.images.find((img) => img.isMain)?.url ||
-              product.images[0].url
-            : null,
-      };
-
-      // Calculate item total
-      subtotal += orderItem.price * orderItem.quantity;
-
-      items.push(orderItem);
-    }
-
-    // Apply discount if provided
-    let discountAmount = 0;
-    if (req.body.discount && req.body.discount.code) {
-      const discount = await Discount.findOne({
-        code: req.body.discount.code.toUpperCase(),
-      });
-
-      if (!discount) {
-        return next(
-          new ErrorResponse(
-            `Discount code ${req.body.discount.code} is invalid`,
-            400
-          )
-        );
-      }
-
-      // Check each validation condition separately for better error messages
-      if (!discount.isActive) {
-        return next(
-          new ErrorResponse(
-            `Discount code ${req.body.discount.code} is not active`,
-            400
-          )
-        );
-      }
-
-      const now = new Date();
-      if (now < discount.startDate) {
-        return next(
-          new ErrorResponse(
-            `Discount code ${req.body.discount.code} is not yet valid`,
-            400
-          )
-        );
-      }
-
-      if (now > discount.endDate) {
-        return next(
-          new ErrorResponse(
-            `Discount code ${req.body.discount.code} has expired`,
-            400
-          )
-        );
-      }
-
-      if (
-        discount.usageLimit !== null &&
-        discount.usageCount >= discount.usageLimit
-      ) {
-        return next(
-          new ErrorResponse(
-            `Discount code ${req.body.discount.code} usage limit has been reached`,
-            400
-          )
-        );
-      }
-
-      // Check minimum purchase requirement
-      if (subtotal < discount.minPurchase) {
-        return next(
-          new ErrorResponse(
-            `Minimum purchase of $${discount.minPurchase} required for this discount`,
-            400
-          )
-        );
-      }
-
-      // Calculate discount amount
-      discountAmount = discount.calculateDiscount(subtotal);
-
-      // Increment usage count
-      discount.usageCount += 1;
-      await discount.save();
-    }
-
-    // Calculate shipping cost
-    let shippingCost = 0;
-    if (req.body.shippingMethod) {
-      const shipping = await Shipping.findById(req.body.shippingMethod);
-
-      if (!shipping) {
-        return next(
-          new ErrorResponse(
-            `Shipping method not found with id of ${req.body.shippingMethod}`,
-            404
-          )
-        );
-      }
-
-      if (!shipping.isActive) {
-        return next(new ErrorResponse(`Shipping method is not active`, 400));
-      }
-
-      // Calculate shipping cost
-      shippingCost = shipping.calculateCost(
-        subtotal,
-        req.body.shippingAddress.country,
-        req.body.shippingAddress.state
-      );
-
-      // Store shipping method name
-      req.body.shippingMethod = shipping.name;
-    }
-
-    // Calculate tax (example: 10%)
-    const taxRate = 0.1;
-    const tax = (subtotal - discountAmount) * taxRate;
-
-    // Calculate total
-    const total = subtotal - discountAmount + tax + shippingCost;
-
-    // Create order
-    const order = await Order.create({
-      user: req.user.id,
-      items,
-      shippingAddress: req.body.shippingAddress,
-      billingAddress: req.body.billingAddress || req.body.shippingAddress,
-      paymentMethod: req.body.paymentMethod,
-      shippingMethod: req.body.shippingMethod,
-      subtotal,
-      tax,
-      shippingCost,
-      discount: {
-        code: req.body.discount?.code,
-        amount: discountAmount,
-      },
-      total,
-      status: "pending",
-      notes: req.body.notes,
-    });
-
-    // Update inventory
-    for (const item of items) {
-      const inventory = await Inventory.findOne({ product: item.product });
-      inventory.reservedQuantity += item.quantity;
-      await inventory.save();
-    }
-
-    res.status(201).json({
       success: true,
       data: order,
     });
@@ -475,22 +206,22 @@ exports.updateOrderStatus = async (req, res, next) => {
 
     // Handle inventory changes based on status change
     if (status === "cancelled" && order.status !== "cancelled") {
-      // Return reserved quantities to inventory
+      // Return quantities to inventory when cancelled
       for (const item of order.items) {
-        const inventory = await Inventory.findOne({ product: item.product });
-        if (inventory) {
-          inventory.reservedQuantity -= item.quantity;
-          await inventory.save();
+        const product = await Product.findById(item.product);
+        if (product) {
+          // Increase product quantity
+          product.quantity += item.quantity;
+          await product.save();
         }
       }
     } else if (status === "shipped" && order.status !== "shipped") {
-      // Deduct quantities from inventory when shipped
+      // When shipped, ensure quantities are deducted (if they haven't been already)
       for (const item of order.items) {
-        const inventory = await Inventory.findOne({ product: item.product });
-        if (inventory) {
-          inventory.quantity -= item.quantity;
-          inventory.reservedQuantity -= item.quantity;
-          await inventory.save();
+        const product = await Product.findById(item.product);
+        if (product) {
+          // We don't need to deduct here if we've already deducted at order creation time
+          // This is just a safety check to ensure inventory is accurate
         }
       }
     }
@@ -542,13 +273,14 @@ exports.deleteOrder = async (req, res, next) => {
       );
     }
 
-    // Return reserved quantities to inventory if order is not shipped or delivered
+    // Return quantities to inventory if order is not shipped or delivered
     if (order.status !== "shipped" && order.status !== "delivered") {
       for (const item of order.items) {
-        const inventory = await Inventory.findOne({ product: item.product });
-        if (inventory) {
-          inventory.reservedQuantity -= item.quantity;
-          await inventory.save();
+        const product = await Product.findById(item.product);
+        if (product) {
+          // Return quantity to product
+          product.quantity += item.quantity;
+          await product.save();
         }
       }
     }
@@ -659,5 +391,315 @@ exports.processRefund = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+// @desc    Submit product order without authentication
+// @route   POST /api/orders/public
+// @access  Public
+exports.submitPublicOrder = async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      address1,
+      address2,
+      city,
+      state,
+      postalCode,
+      country,
+      items,
+      paymentMethod,
+      discountCode,
+    } = req.body;
+
+    // Validate items and calculate subtotal
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          error: `Product with ID ${item.productId} not found`,
+        });
+      }
+
+      // Use discounted price if available, otherwise use regular price
+      const itemPrice =
+        product.discountedPrice > 0 ? product.discountedPrice : product.price;
+      const itemTotal = itemPrice * item.quantity;
+      subtotal += itemTotal;
+
+      orderItems.push({
+        product: product._id,
+        name: product.name,
+        price: itemPrice,
+        quantity: item.quantity,
+        image:
+          product.images && product.images.length > 0
+            ? product.images[0].url
+            : null,
+      });
+    }
+
+    // Calculate tax (VAT)
+    const taxRate = 0.2; // 20% VAT - this could be made configurable
+    const tax = subtotal * taxRate;
+
+    // Set fixed shipping cost
+    const shippingCost = 5.99; // Standard shipping cost
+
+    // Apply discount if code is provided
+    let discountAmount = 0;
+    let discountCodeUsed = null;
+
+    if (discountCode) {
+      const discount = await Discount.findOne({
+        code: discountCode,
+        isActive: true,
+        startDate: { $lte: new Date() },
+        endDate: { $gte: new Date() },
+      });
+
+      if (discount) {
+        // Calculate discount amount
+        discountAmount = subtotal * (discount.discountValue / 100);
+        discountCodeUsed = discountCode;
+
+        // Increment usage count
+        discount.usageCount += 1;
+        await discount.save();
+      }
+    }
+
+    // Calculate final total
+    const total = subtotal + tax + shippingCost - discountAmount;
+
+    // Create the order
+    const order = await Order.create({
+      isPublicSubmission: true,
+      customerInfo: {
+        firstName,
+        lastName,
+        email,
+        phone,
+      },
+      shippingAddress: {
+        firstName,
+        lastName,
+        address1,
+        address2: address2 || "",
+        city,
+        state,
+        postalCode,
+        country,
+        phone,
+      },
+      billingAddress: {
+        firstName,
+        lastName,
+        address1,
+        address2: address2 || "",
+        city,
+        state,
+        postalCode,
+        country,
+        phone,
+      },
+      items: orderItems,
+      paymentMethod: paymentMethod || "card",
+      paymentStatus: "pending",
+      subtotal,
+      tax,
+      shippingCost,
+      discount: {
+        code: discountCodeUsed,
+        amount: discountAmount,
+      },
+      total,
+      status: "pending",
+    });
+
+    // Deduct quantities from product inventory
+    for (const item of orderItems) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        // Check if enough quantity available
+        if (product.quantity < item.quantity) {
+          return res.status(400).json({
+            success: false,
+            error: `Not enough inventory for ${product.name}. Only ${product.quantity} available.`,
+          });
+        }
+
+        // Deduct from available quantity
+        product.quantity -= item.quantity;
+        await product.save();
+      }
+    }
+
+    // Send successful response
+    res.status(201).json({
+      success: true,
+      message: "Thank you for your order! We'll process it shortly.",
+      reference: order._id,
+      orderNumber: order.orderNumber,
+      total,
+    });
+  } catch (err) {
+    console.error("Error submitting order:", err);
+    res.status(500).json({
+      success: false,
+      error:
+        "We couldn't process your order. Please try again or contact us directly.",
+    });
+  }
+};
+
+// @desc    Check order status - public endpoint
+// @route   GET /api/orders/public/:id
+// @access  Public
+exports.checkPublicOrderStatus = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order || !order.isPublicSubmission) {
+      return res.status(404).json({
+        success: false,
+        error: "Order not found",
+      });
+    }
+
+    // Return limited information for public access
+    res.status(200).json({
+      success: true,
+      data: {
+        id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        subtotal: order.subtotal,
+        tax: order.tax,
+        shippingCost: order.shippingCost,
+        discount: order.discount,
+        total: order.total,
+        items: order.items.map((item) => ({
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        customerInfo: {
+          firstName: order.customerInfo.firstName,
+          lastName: order.customerInfo.lastName,
+          email: order.customerInfo.email,
+        },
+        createdAt: order.createdAt,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
+  }
+};
+
+// @desc    Validate discount code
+// @route   POST /api/orders/public/validate-discount
+// @access  Public
+exports.validateDiscountCode = async (req, res) => {
+  try {
+    const { code, subtotal } = req.body;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide a discount code",
+      });
+    }
+
+    const discount = await Discount.findOne({
+      code: code.toUpperCase(),
+      isActive: true,
+      startDate: { $lte: new Date() },
+      endDate: { $gte: new Date() },
+    });
+
+    if (!discount) {
+      return res.status(404).json({
+        success: false,
+        error: "Invalid or expired discount code",
+      });
+    }
+
+    // Check if discount has a usage limit
+    if (
+      discount.usageLimit !== null &&
+      discount.usageCount >= discount.usageLimit
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "This discount code has reached its usage limit",
+      });
+    }
+
+    // Calculate discount amount if subtotal is provided
+    let discountAmount = 0;
+    if (subtotal) {
+      discountAmount = subtotal * (discount.discountValue / 100);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        code: discount.code,
+        value: discount.discountValue,
+        description: discount.discountValue + "% off",
+        discountAmount: discountAmount || null,
+      },
+    });
+  } catch (err) {
+    console.error("Error validating discount:", err);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
+  }
+};
+
+// @desc    Get active discounts
+// @route   GET /api/orders/public/discounts
+// @access  Public
+exports.getActiveDiscounts = async (req, res) => {
+  try {
+    const discounts = await Discount.find({
+      isActive: true,
+      startDate: { $lte: new Date() },
+      endDate: { $gte: new Date() },
+    }).select("code discountValue usageLimit usageCount");
+
+    // Filter out discounts that have reached their usage limit
+    const availableDiscounts = discounts.filter((discount) => {
+      return (
+        discount.usageLimit === null ||
+        discount.usageCount < discount.usageLimit
+      );
+    });
+
+    res.status(200).json({
+      success: true,
+      count: availableDiscounts.length,
+      data: availableDiscounts,
+    });
+  } catch (err) {
+    console.error("Error getting active discounts:", err);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
   }
 };

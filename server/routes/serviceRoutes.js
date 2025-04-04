@@ -1,8 +1,5 @@
 const express = require("express");
-const {
-  protect,
-  authorize,
-} = require("../middleware/authMiddleware");
+const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getServices,
   getService,
@@ -22,11 +19,20 @@ router.get("/:id", getService);
 router.get("/category/:category", getServicesByCategory);
 
 // Protected routes - admin only
-// router.use(protect);
-// router.use(authorize("admin"));
-
-router.post("/", createServiceValidation, createService);
-router.put("/:id", updateServiceValidation, updateService);
-router.delete("/:id", deleteService);
+router.post(
+  "/",
+  protect,
+  authorize("admin"),
+  createServiceValidation,
+  createService
+);
+router.put(
+  "/:id",
+  protect,
+  authorize("admin"),
+  updateServiceValidation,
+  updateService
+);
+router.delete("/:id", protect, authorize("admin"), deleteService);
 
 module.exports = router;

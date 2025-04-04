@@ -1,7 +1,5 @@
 const { validationResult, check } = require("express-validator");
 const Discount = require("../models/Discount");
-const Product = require("../models/Product");
-const Category = require("../models/Category");
 const ErrorResponse = require("../utils/errorResponse");
 
 // Validation rules
@@ -12,45 +10,17 @@ exports.createDiscountValidation = [
     .isLength({ min: 3, max: 20 })
     .withMessage("Code must be between 3 and 20 characters"),
 
-  check("description")
-    .optional()
-    .isLength({ max: 200 })
-    .withMessage("Description cannot be more than 200 characters"),
-
-  check("type")
+  check("discountValue")
     .notEmpty()
-    .withMessage("Discount type is required")
-    .isIn(["percentage", "fixed", "shipping"])
-    .withMessage("Invalid discount type"),
-
-  check("value")
-    .notEmpty()
-    .withMessage("Discount value is required")
+    .withMessage("Discount percentage is required")
     .isNumeric()
     .withMessage("Value must be a number")
-    .custom((value, { req }) => {
-      if (req.body.type === "percentage" && (value <= 0 || value > 100)) {
+    .custom((value) => {
+      if (value <= 0 || value > 100) {
         throw new Error("Percentage discount must be between 0 and 100");
-      }
-      if (value < 0) {
-        throw new Error("Discount value cannot be negative");
       }
       return true;
     }),
-
-  check("minPurchase")
-    .optional()
-    .isNumeric()
-    .withMessage("Minimum purchase must be a number")
-    .custom((value) => value >= 0)
-    .withMessage("Minimum purchase cannot be negative"),
-
-  check("maxDiscount")
-    .optional()
-    .isNumeric()
-    .withMessage("Maximum discount must be a number")
-    .custom((value) => value >= 0)
-    .withMessage("Maximum discount cannot be negative"),
 
   check("startDate")
     .optional()
@@ -77,26 +47,6 @@ exports.createDiscountValidation = [
     .optional()
     .isInt({ min: 1 })
     .withMessage("Usage limit must be at least 1"),
-
-  check("applicableProducts")
-    .optional()
-    .isArray()
-    .withMessage("Applicable products must be an array"),
-
-  check("applicableProducts.*")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid product ID"),
-
-  check("applicableCategories")
-    .optional()
-    .isArray()
-    .withMessage("Applicable categories must be an array"),
-
-  check("applicableCategories.*")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid category ID"),
 ];
 
 exports.updateDiscountValidation = [
@@ -105,43 +55,16 @@ exports.updateDiscountValidation = [
     .isLength({ min: 3, max: 20 })
     .withMessage("Code must be between 3 and 20 characters"),
 
-  check("description")
-    .optional()
-    .isLength({ max: 200 })
-    .withMessage("Description cannot be more than 200 characters"),
-
-  check("type")
-    .optional()
-    .isIn(["percentage", "fixed", "shipping"])
-    .withMessage("Invalid discount type"),
-
-  check("value")
+  check("discountValue")
     .optional()
     .isNumeric()
     .withMessage("Value must be a number")
-    .custom((value, { req }) => {
-      if (req.body.type === "percentage" && (value <= 0 || value > 100)) {
+    .custom((value) => {
+      if (value <= 0 || value > 100) {
         throw new Error("Percentage discount must be between 0 and 100");
-      }
-      if (value < 0) {
-        throw new Error("Discount value cannot be negative");
       }
       return true;
     }),
-
-  check("minPurchase")
-    .optional()
-    .isNumeric()
-    .withMessage("Minimum purchase must be a number")
-    .custom((value) => value >= 0)
-    .withMessage("Minimum purchase cannot be negative"),
-
-  check("maxDiscount")
-    .optional()
-    .isNumeric()
-    .withMessage("Maximum discount must be a number")
-    .custom((value) => value >= 0)
-    .withMessage("Maximum discount cannot be negative"),
 
   check("startDate")
     .optional()
@@ -169,26 +92,6 @@ exports.updateDiscountValidation = [
     .optional()
     .isInt({ min: 1 })
     .withMessage("Usage limit must be at least 1"),
-
-  check("applicableProducts")
-    .optional()
-    .isArray()
-    .withMessage("Applicable products must be an array"),
-
-  check("applicableProducts.*")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid product ID"),
-
-  check("applicableCategories")
-    .optional()
-    .isArray()
-    .withMessage("Applicable categories must be an array"),
-
-  check("applicableCategories.*")
-    .optional()
-    .isMongoId()
-    .withMessage("Invalid category ID"),
 
   check("isActive")
     .optional()
@@ -387,35 +290,6 @@ exports.createDiscount = async (req, res, next) => {
 
     // Add user to req.body
     req.body.createdBy = req.user.id;
-    // Validate applicable products if provided
-    if (req.body.applicableProducts && req.body.applicableProducts.length > 0) {
-      for (const productId of req.body.applicableProducts) {
-        const product = await Product.findById(productId);
-        if (!product) {
-          return next(
-            new ErrorResponse(`Product not found with id of ${productId}`, 404)
-          );
-        }
-      }
-    }
-
-    // Validate applicable categories if provided
-    if (
-      req.body.applicableCategories &&
-      req.body.applicableCategories.length > 0
-    ) {
-      for (const categoryId of req.body.applicableCategories) {
-        const category = await Category.findById(categoryId);
-        if (!category) {
-          return next(
-            new ErrorResponse(
-              `Category not found with id of ${categoryId}`,
-              404
-            )
-          );
-        }
-      }
-    }
 
     // Convert code to uppercase
     req.body.code = req.body.code.toUpperCase();
@@ -452,36 +326,6 @@ exports.updateDiscount = async (req, res, next) => {
       return next(
         new ErrorResponse(`Discount not found with id of ${req.params.id}`, 404)
       );
-    }
-
-    // Validate applicable products if provided
-    if (req.body.applicableProducts && req.body.applicableProducts.length > 0) {
-      for (const productId of req.body.applicableProducts) {
-        const product = await Product.findById(productId);
-        if (!product) {
-          return next(
-            new ErrorResponse(`Product not found with id of ${productId}`, 404)
-          );
-        }
-      }
-    }
-
-    // Validate applicable categories if provided
-    if (
-      req.body.applicableCategories &&
-      req.body.applicableCategories.length > 0
-    ) {
-      for (const categoryId of req.body.applicableCategories) {
-        const category = await Category.findById(categoryId);
-        if (!category) {
-          return next(
-            new ErrorResponse(
-              `Category not found with id of ${categoryId}`,
-              404
-            )
-          );
-        }
-      }
     }
 
     // Convert code to uppercase if provided

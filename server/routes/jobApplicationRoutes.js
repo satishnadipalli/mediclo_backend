@@ -1,8 +1,5 @@
 const express = require("express");
-const {
-  protect,
-  authorize,
-} = require("../middleware/authMiddleware");
+const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getApplications,
   getUserApplications,
@@ -10,30 +7,30 @@ const {
   updateApplicationStatus,
   deleteApplication,
   updateApplicationStatusValidation,
+  submitPublicJobApplication,
+  checkPublicApplicationStatus,
 } = require("../controllers/jobApplicationController");
 
 const router = express.Router();
 
-// Protected routes
-router.use(protect);
+// Public endpoints
+router.post("/public/:jobId", submitPublicJobApplication);
+router.get("/public/status/:id", checkPublicApplicationStatus);
 
-// Get user's applications
-router.get("/me", getUserApplications);
-
-// Get single application
-router.get("/:id", getApplication);
-
-// Delete application
-router.delete("/:id", deleteApplication);
+// Protected admin-only routes
+router.use(protect, authorize("admin"));
 
 // Admin only routes
-router.get("/", authorize("admin"), getApplications);
-
+router.get("/", getApplications);
+router.get("/:id", getApplication);
+router.delete("/:id", deleteApplication);
 router.put(
   "/:id/status",
-  authorize("admin"),
   updateApplicationStatusValidation,
   updateApplicationStatus
 );
+
+// Remove user-specific routes
+// router.get("/me", getUserApplications);
 
 module.exports = router;

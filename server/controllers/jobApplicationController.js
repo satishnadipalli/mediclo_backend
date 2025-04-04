@@ -8,7 +8,6 @@ exports.createApplicationValidation = [
   check("resumeUrl", "Resume URL is required").notEmpty().isURL(),
 ];
 
-
 exports.updateApplicationStatusValidation = [
   check("status", "Status must be valid").isIn([
     "pending",
@@ -347,5 +346,114 @@ exports.deleteApplication = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+// @desc    Submit a public job application - no authentication required
+// @route   POST /api/job-applications/public/:jobId
+// @access  Public
+exports.submitPublicJobApplication = async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      resume,
+      coverLetter,
+      experience,
+      education,
+      skills,
+    } = req.body;
+
+    const jobId = req.params.jobId;
+
+    // Check if job exists and is open
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: "Job not found",
+      });
+    }
+
+    if (job.status !== "open") {
+      return res.status(400).json({
+        success: false,
+        error: "This position is no longer accepting applications",
+      });
+    }
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide all required fields",
+      });
+    }
+
+    // Create the job application without requiring user account
+    const application = await JobApplication.create({
+      jobId,
+      firstName,
+      lastName,
+      email,
+      phone,
+      resume: resume || "",
+      coverLetter: coverLetter || "",
+      experience: experience || "",
+      education: education || "",
+      skills: skills || [],
+      status: "received",
+      isPublicSubmission: true,
+    });
+
+    // Send successful response
+    res.status(201).json({
+      success: true,
+      message:
+        "Thank you! Your application has been received. We'll contact you soon.",
+      reference: application._id,
+    });
+  } catch (err) {
+    console.error("Error submitting job application:", err);
+    res.status(500).json({
+      success: false,
+      error:
+        "We couldn't process your application. Please try again or contact us directly.",
+    });
+  }
+};
+
+// @desc    Check job application status - public endpoint
+// @route   GET /api/job-applications/public/status/:id
+// @access  Public
+exports.checkPublicApplicationStatus = async (req, res) => {
+  try {
+    const application = await JobApplication.findById(req.params.id);
+
+    if (!application || !application.isPublicSubmission) {
+      return res.status(404).json({
+        success: false,
+        error: "Application not found",
+      });
+    }
+
+    // Return limited information for public access
+    res.status(200).json({
+      success: true,
+      data: {
+        id: application._id,
+        jobId: application.jobId,
+        status: application.status,
+        createdAt: application.createdAt,
+        // Do not include email, phone, or other personal details
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
   }
 };

@@ -1,6 +1,7 @@
 const Appointment = require("../models/Appointment");
 const Patient = require("../models/Patient");
 const User = require("../models/User");
+const Service = require("../models/Service");
 const { body, validationResult } = require("express-validator");
 
 // @desc    Get all appointments
@@ -57,6 +58,7 @@ exports.getAppointments = async (req, res) => {
       data: appointments,
     });
   } catch (err) {
+    console.log(err);
     res.status(500).json({
       success: false,
       error: "Server Error",
@@ -78,6 +80,10 @@ exports.getAppointment = async (req, res) => {
         path: "therapistId",
         select: "firstName lastName email phone",
         model: "User",
+      })
+      .populate({
+        path: "serviceId",
+        select: "name category duration price",
       });
 
     if (!appointment) {
@@ -117,8 +123,11 @@ exports.getAppointment = async (req, res) => {
 
 // Validation for create appointment
 exports.validateAppointment = [
-  body("patientId").notEmpty().withMessage("Patient is required"),
-  body("therapistId").notEmpty().withMessage("Therapist is required"),
+  body("fullName").notEmpty().withMessage("Patient name is required"),
+  body("email").optional().isEmail().withMessage("Valid email is required"),
+  body("phone").notEmpty().withMessage("Phone number is required"),
+  body("therapistId").optional(),
+  body("serviceId").notEmpty().withMessage("Service is required"),
   body("date")
     .notEmpty()
     .withMessage("Date is required")
@@ -127,15 +136,13 @@ exports.validateAppointment = [
   body("startTime").notEmpty().withMessage("Start time is required"),
   body("endTime").notEmpty().withMessage("End time is required"),
   body("type").notEmpty().withMessage("Appointment type is required"),
-  body("payment.amount")
-    .isNumeric()
-    .withMessage("Payment amount must be a number"),
-  body("consent").equals("true").withMessage("Patient consent is required"),
+  body("notes").optional(),
+  body("address").optional(),
 ];
 
-// @desc    Create appointment
+// @desc    Create appointment by receptionist
 // @route   POST /api/appointments
-// @access  Private (Admin, Therapist, Receptionist)
+// @access  Private (Admin, Receptionist)
 exports.createAppointment = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -146,41 +153,50 @@ exports.createAppointment = async (req, res) => {
   }
 
   try {
-    // Check if patient exists
-    const patient = await Patient.findById(req.body.patientId);
-    if (!patient) {
-      return res.status(404).json({
-        success: false,
-        error: "Patient not found",
-      });
+    // Check if therapist exists if provided
+    if (req.body.therapistId) {
+      const therapist = await User.findById(req.body.therapistId);
+      if (!therapist || therapist.role !== "therapist") {
+        return res.status(404).json({
+          success: false,
+          error: "Therapist not found",
+        });
+      }
     }
 
-    // Check if therapist exists and is a therapist
-    const therapist = await User.findById(req.body.therapistId);
-    if (!therapist || therapist.role !== "therapist") {
-      return res.status(404).json({
-        success: false,
-        error: "Therapist not found",
-      });
+    // Check if service exists
+    if (req.body.serviceId) {
+      const service = await Service.findById(req.body.serviceId);
+      if (!service) {
+        return res.status(404).json({
+          success: false,
+          error: "Service not found",
+        });
+      }
     }
 
-    // Create the appointment
+    // Create the appointment - receptionist can create directly in scheduled status
     const appointment = await Appointment.create({
-      patientId: req.body.patientId,
+      fullName: req.body.fullName,
+      email: req.body.email || "",
+      phone: req.body.phone,
       therapistId: req.body.therapistId,
+      serviceId: req.body.serviceId,
       date: req.body.date,
       startTime: req.body.startTime,
       endTime: req.body.endTime,
       status: req.body.status || "scheduled",
       type: req.body.type,
       notes: req.body.notes || "",
-      payment: {
-        amount: req.body.payment.amount,
-        status: req.body.payment.status || "pending",
-        method: req.body.payment.method || "card",
-      },
       address: req.body.address || "",
-      documents: req.body.documents || [],
+      payment: {
+        amount: req.body.paymentAmount || 0,
+        status: "pending",
+        method: req.body.paymentMethod || "not_specified",
+      },
+      // Record who created this appointment
+      assignedBy: req.user._id,
+      assignedAt: new Date(),
     });
 
     res.status(201).json({
@@ -552,128 +568,128 @@ exports.getPatientAppointments = async (req, res) => {
   }
 };
 
-// Validation for parent appointment request
-exports.validateParentAppointmentRequest = [
-  body("patientId").notEmpty().withMessage("Patient is required"),
-  body("preferredDates")
-    .isArray({ min: 1 })
-    .withMessage("At least one preferred date is required"),
-  body("preferredDates.*.date").isDate().withMessage("Invalid date format"),
-  body("preferredDates.*.timeSlot")
-    .notEmpty()
-    .withMessage("Time slot preference is required")
-    .isIn(["morning", "afternoon", "evening"])
-    .withMessage("Time slot must be morning, afternoon, or evening"),
-  body("therapistPreference")
-    .optional()
-    .isIn(["no_preference", "specific", "any_available"])
-    .withMessage("Invalid therapist preference"),
-  body("specificTherapistId")
-    .optional()
-    .custom((value, { req }) => {
-      if (req.body.therapistPreference === "specific" && !value) {
-        throw new Error(
-          "Therapist ID is required when selecting a specific therapist"
-        );
-      }
-      return true;
-    }),
-  body("therapyType").notEmpty().withMessage("Therapy type is required"),
-  body("notes").optional(),
-  body("consent").equals("true").withMessage("Patient consent is required"),
-];
+// // Validation for parent appointment request
+// exports.validateParentAppointmentRequest = [
+//   body("patientId").notEmpty().withMessage("Patient is required"),
+//   body("preferredDates")
+//     .isArray({ min: 1 })
+//     .withMessage("At least one preferred date is required"),
+//   body("preferredDates.*.date").isDate().withMessage("Invalid date format"),
+//   body("preferredDates.*.timeSlot")
+//     .notEmpty()
+//     .withMessage("Time slot preference is required")
+//     .isIn(["morning", "afternoon", "evening"])
+//     .withMessage("Time slot must be morning, afternoon, or evening"),
+//   body("therapistPreference")
+//     .optional()
+//     .isIn(["no_preference", "specific", "any_available"])
+//     .withMessage("Invalid therapist preference"),
+//   body("specificTherapistId")
+//     .optional()
+//     .custom((value, { req }) => {
+//       if (req.body.therapistPreference === "specific" && !value) {
+//         throw new Error(
+//           "Therapist ID is required when selecting a specific therapist"
+//         );
+//       }
+//       return true;
+//     }),
+//   body("therapyType").notEmpty().withMessage("Therapy type is required"),
+//   body("notes").optional(),
+//   body("consent").equals("true").withMessage("Patient consent is required"),
+// ];
 
-// @desc    Create parent appointment request
-// @route   POST /api/appointments/request
-// @access  Private (Parent only)
-exports.createParentAppointmentRequest = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      errors: errors.array(),
-    });
-  }
+// // @desc    Create parent appointment request
+// // @route   POST /api/appointments/request
+// // @access  Private (Parent only)
+// exports.createParentAppointmentRequest = async (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) {
+//     return res.status(400).json({
+//       success: false,
+//       errors: errors.array(),
+//     });
+//   }
 
-  try {
-    // Check if patient exists and belongs to the parent
-    const patient = await Patient.findById(req.body.patientId);
-    if (!patient) {
-      return res.status(404).json({
-        success: false,
-        error: "Patient not found",
-      });
-    }
+//   try {
+//     // Check if patient exists and belongs to the parent
+//     const patient = await Patient.findById(req.body.patientId);
+//     if (!patient) {
+//       return res.status(404).json({
+//         success: false,
+//         error: "Patient not found",
+//       });
+//     }
 
-    // Verify parent is the guardian of this patient
-    if (patient.parentId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to book appointments for this patient",
-      });
-    }
+//     // Verify parent is the guardian of this patient
+//     if (patient.parentId.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({
+//         success: false,
+//         error: "Not authorized to book appointments for this patient",
+//       });
+//     }
 
-    // If specific therapist is selected, verify therapist exists
-    let therapistId = null;
-    if (
-      req.body.therapistPreference === "specific" &&
-      req.body.specificTherapistId
-    ) {
-      const therapist = await User.findById(req.body.specificTherapistId);
-      if (!therapist || therapist.role !== "therapist") {
-        return res.status(404).json({
-          success: false,
-          error: "Therapist not found",
-        });
-      }
-      therapistId = req.body.specificTherapistId;
-    }
+//     // If specific therapist is selected, verify therapist exists
+//     let therapistId = null;
+//     if (
+//       req.body.therapistPreference === "specific" &&
+//       req.body.specificTherapistId
+//     ) {
+//       const therapist = await User.findById(req.body.specificTherapistId);
+//       if (!therapist || therapist.role !== "therapist") {
+//         return res.status(404).json({
+//           success: false,
+//           error: "Therapist not found",
+//         });
+//       }
+//       therapistId = req.body.specificTherapistId;
+//     }
 
-    // Create the appointment request with status "pending_assignment" if no therapist selected
-    const appointmentStatus = therapistId
-      ? "pending_confirmation"
-      : "pending_assignment";
+//     // Create the appointment request with status "pending_assignment" if no therapist selected
+//     const appointmentStatus = therapistId
+//       ? "pending_confirmation"
+//       : "pending_assignment";
 
-    // Create the appointment request
-    const appointment = await Appointment.create({
-      patientId: req.body.patientId,
-      therapistId: therapistId, // Can be null if no specific therapist
-      preferredDates: req.body.preferredDates,
-      therapistPreference: req.body.therapistPreference || "no_preference",
-      type: req.body.therapyType,
-      status: appointmentStatus,
-      notes: req.body.notes || "",
-      payment: {
-        amount: 0, // To be determined later
-        status: "pending",
-        method: "not_specified",
-      },
-      requestedByParent: true,
-      parentRequestedAt: new Date(),
-    });
+//     // Create the appointment request
+//     const appointment = await Appointment.create({
+//       patientId: req.body.patientId,
+//       therapistId: therapistId, // Can be null if no specific therapist
+//       preferredDates: req.body.preferredDates,
+//       therapistPreference: req.body.therapistPreference || "no_preference",
+//       type: req.body.therapyType,
+//       status: appointmentStatus,
+//       notes: req.body.notes || "",
+//       payment: {
+//         amount: 0, // To be determined later
+//         status: "pending",
+//         method: "not_specified",
+//       },
+//       requestedByParent: true,
+//       parentRequestedAt: new Date(),
+//     });
 
-    res.status(201).json({
-      success: true,
-      data: appointment,
-      message: therapistId
-        ? "Appointment request submitted and awaiting confirmation"
-        : "Appointment request submitted and awaiting therapist assignment",
-    });
-  } catch (err) {
-    if (err.name === "ValidationError") {
-      const messages = Object.values(err.errors).map((val) => val.message);
-      return res.status(400).json({
-        success: false,
-        error: messages,
-      });
-    } else {
-      return res.status(500).json({
-        success: false,
-        error: "Server Error",
-      });
-    }
-  }
-};
+//     res.status(201).json({
+//       success: true,
+//       data: appointment,
+//       message: therapistId
+//         ? "Appointment request submitted and awaiting confirmation"
+//         : "Appointment request submitted and awaiting therapist assignment",
+//     });
+//   } catch (err) {
+//     if (err.name === "ValidationError") {
+//       const messages = Object.values(err.errors).map((val) => val.message);
+//       return res.status(400).json({
+//         success: false,
+//         error: messages,
+//       });
+//     } else {
+//       return res.status(500).json({
+//         success: false,
+//         error: "Server Error",
+//       });
+//     }
+//   }
+// };
 
 // @desc    Assign therapist to pending appointment request
 // @route   PUT /api/appointments/:id/assign-therapist
@@ -792,5 +808,236 @@ exports.assignTherapistToAppointment = async (req, res) => {
         error: "Server Error",
       });
     }
+  }
+};
+
+// @desc    Get all public appointment requests
+// @route   GET /api/appointments/public-requests
+// @access  Private (Admin, Receptionist)
+exports.getPublicAppointmentRequests = async (req, res) => {
+  try {
+    const requests = await Appointment.find({
+      isPublicSubmission: true,
+      status: "pending",
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      data: requests,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
+  }
+};
+
+// @desc    Convert public appointment request to formal appointment
+// @route   PUT /api/appointments/:id/convert-public-request
+// @access  Private (Admin, Receptionist)
+exports.convertPublicAppointmentRequest = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Appointment request not found",
+      });
+    }
+
+    if (!appointment.isPublicSubmission) {
+      return res.status(400).json({
+        success: false,
+        error: "This is not a public appointment request",
+      });
+    }
+
+    const {
+      therapistId,
+      date,
+      startTime,
+      endTime,
+      appointmentType,
+      paymentAmount,
+      patientId,
+      patientDetails, // Optional - if creating a new patient record
+      serviceId, // Added service reference
+    } = req.body;
+
+    // If patientId is not provided but patientDetails is, create a new patient
+    let finalPatientId = patientId;
+
+    if (!patientId && patientDetails) {
+      // This would require importing Patient and User models and implementing the logic
+      // For now, we'll just indicate it's required
+      return res.status(400).json({
+        success: false,
+        error:
+          "PatientId is required. Creating patients from public appointments is not yet implemented.",
+      });
+    }
+
+    // Check if service exists
+    if (serviceId) {
+      const service = await Service.findById(serviceId);
+      if (!service) {
+        return res.status(404).json({
+          success: false,
+          error: "Service not found",
+        });
+      }
+    }
+
+    // Update the appointment with formal details
+    appointment.therapistId = therapistId;
+    appointment.date = new Date(date);
+    appointment.startTime = startTime;
+    appointment.endTime = endTime;
+    appointment.status = "scheduled";
+    appointment.type = appointmentType || "initial assessment";
+    appointment.serviceId = serviceId;
+    appointment.payment = {
+      amount: paymentAmount || 0,
+      status: "pending",
+      method: "not_specified",
+    };
+    appointment.patientId = finalPatientId;
+    appointment.assignedBy = req.user._id;
+    appointment.assignedAt = new Date();
+
+    await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      data: appointment,
+      message:
+        "Public appointment request has been converted to a formal appointment",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
+  }
+};
+
+// Validation for public appointment submission
+exports.validatePublicAppointment = [
+  body("fullName").notEmpty().withMessage("Your name is required"),
+  body("email")
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Valid email is required"),
+  body("phone").notEmpty().withMessage("Phone number is required"),
+  body("dateTime")
+    .notEmpty()
+    .withMessage("Preferred date and time is required"),
+  body("reason").notEmpty().withMessage("Reason for appointment is required"),
+  body("specialist").optional(),
+  body("serviceType").optional(),
+  body("consultationMode").optional(),
+];
+
+// @desc    Submit public appointment request
+// @route   POST /api/appointments/public
+// @access  Public
+exports.submitPublicAppointment = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array(),
+    });
+  }
+
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      specialist,
+      dateTime,
+      reason,
+      serviceType,
+      consultationMode,
+    } = req.body;
+
+    // Create the appointment directly without requiring user/patient accounts
+    const appointment = await Appointment.create({
+      // Public form fields
+      fullName,
+      email,
+      phone,
+      requestedSpecialist: specialist || "Any available specialist",
+      requestedDateTime: new Date(dateTime),
+      consultationMode: consultationMode || "in-person",
+      requestSource: "website",
+      isPublicSubmission: true,
+
+      // Record service type if provided
+      notes: serviceType
+        ? `Service type: ${serviceType}. Reason: ${reason}`
+        : reason,
+
+      // Set appropriate status
+      status: "pending",
+
+      // Use the reason as both type and notes
+      type: "other",
+    });
+
+    // Send successful response
+    res.status(201).json({
+      success: true,
+      message:
+        "Thank you! Your appointment request has been received. We'll contact you soon.",
+      reference: appointment._id,
+    });
+  } catch (err) {
+    console.error("Error submitting appointment form:", err);
+    res.status(500).json({
+      success: false,
+      error:
+        "We couldn't process your request. Please try again or contact us directly.",
+    });
+  }
+};
+
+// @desc    Check appointment request status - public endpoint
+// @route   GET /api/appointments/public/status/:id
+// @access  Public
+exports.checkPublicAppointmentStatus = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment || !appointment.isPublicSubmission) {
+      return res.status(404).json({
+        success: false,
+        error: "Appointment request not found",
+      });
+    }
+
+    // Return limited information for public access
+    res.status(200).json({
+      success: true,
+      data: {
+        id: appointment._id,
+        status: appointment.status,
+        requestedDateTime: appointment.requestedDateTime,
+        requestedSpecialist: appointment.requestedSpecialist,
+        createdAt: appointment.createdAt,
+        // Do not include email, phone, or other personal details
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
   }
 };
