@@ -294,6 +294,25 @@ exports.updateWebinarStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Get all webinar registrations
+// @route   GET /api/webinars/registrations/all
+// @access  Private/Admin
+exports.getAllWebinarRegistrations = async (req, res, next) => {
+  try {
+    const registrations = await WebinarRegistration.find()
+      .sort({ createdAt: -1 })
+      .populate('webinarId', 'title date'); // Optional: populate webinar details
+
+    res.status(200).json({
+      success: true,
+      count: registrations.length,
+      data: registrations,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @desc    Get webinar registrations
 // @route   GET /api/webinars/:id/registrations
 // @access  Private/Admin
@@ -315,6 +334,30 @@ exports.getWebinarRegistrations = async (req, res, next) => {
       success: true,
       count: registrations.length,
       data: registrations,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get a single webinar registration by ID
+// @route   GET /api/webinars/registrations/:id
+// @access  Private/Admin
+exports.getWebinarRegistration = async (req, res, next) => {
+  try {
+    const registration = await WebinarRegistration.findById(req.params.id)
+      .populate('webinarId', 'title date') // Optional: Include webinar details
+      .populate('userId', 'name email');   // Optional: Include user details
+
+    if (!registration) {
+      return next(
+        new ErrorResponse(`Registration not found with id of ${req.params.id}`, 404)
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      data: registration,
     });
   } catch (err) {
     next(err);

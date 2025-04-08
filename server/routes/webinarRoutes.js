@@ -8,12 +8,14 @@ const {
   deleteWebinar,
   updateWebinarStatus,
   getWebinarRegistrations,
+  getWebinarRegistration,
   registerPublicForWebinar,
   validatePublicRegistration,
   markAttendance,
   validateWebinar,
   validateWebinarStatus,
-  deleteWebinarRegistration
+  deleteWebinarRegistration,
+  getAllWebinarRegistrations,
 } = require("../controllers/webinarController");
 
 const router = express.Router();
@@ -43,11 +45,24 @@ router.put(
   validateWebinarStatus,
   updateWebinarStatus
 );
+// Add this with your other admin routes
+router.get(
+  "/registrations/all",
+  protect,
+  authorize("admin"),
+  getAllWebinarRegistrations
+);
 router.get(
   "/:id/registrations",
   protect,
   authorize("admin"),
   getWebinarRegistrations
+);
+router.get(
+  "/registrations/:id",
+  protect,
+  authorize("admin"),
+  getWebinarRegistration
 );
 router.delete(
   "/:webinarId/registrations/:id",
