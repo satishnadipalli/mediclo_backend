@@ -70,9 +70,7 @@ exports.validatePublicRegistration = [
     .withMessage("Email is required")
     .isEmail()
     .withMessage("Please provide a valid email address"),
-  body("phone").optional(),
-  body("occupation").optional(),
-  body("organization").optional(),
+  body("phone").optional()
 ];
 
 // @desc    Get all webinars
@@ -260,7 +258,7 @@ exports.deleteWebinar = async (req, res, next) => {
     // Also delete registrations when deleting webinar
     await WebinarRegistration.deleteMany({ webinarId: req.params.id });
 
-    await webinar.remove();
+    await webinar.deleteOne();
 
     res.status(200).json({
       success: true,
@@ -420,6 +418,43 @@ exports.markAttendance = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: registration,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+// @desc    Delete a webinar registration
+// @route   DELETE /api/webinars/:webinarId/registrations/:id
+// @access  Private/Admin
+exports.deleteWebinarRegistration = async (req, res, next) => {
+  try {
+    const { webinarId, id } = req.params;
+
+    // Find the registration
+    const registration = await WebinarRegistration.findOne({
+      _id: id,
+      webinarId,
+    });
+
+    if (!registration) {
+      return next(
+        new ErrorResponse(`Registration not found for this webinar`, 404)
+      );
+    }
+
+    // Decrement the webinar participant count
+    await Webinar.findByIdAndUpdate(webinarId, {
+      $inc: { participantsCount: -1 },
+    });
+
+    // Delete the registration
+    await registration.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: "Registration removed successfully",
     });
   } catch (err) {
     next(err);

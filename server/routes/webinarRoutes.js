@@ -13,6 +13,7 @@ const {
   markAttendance,
   validateWebinar,
   validateWebinarStatus,
+  deleteWebinarRegistration
 } = require("../controllers/webinarController");
 
 const router = express.Router();
@@ -48,11 +49,18 @@ router.get(
   authorize("admin"),
   getWebinarRegistrations
 );
-router.put(
-  "/:webinarId/registrations/:id/attend",
+router.delete(
+  "/:webinarId/registrations/:id",
   protect,
   authorize("admin"),
-  markAttendance
+  deleteWebinarRegistration
 );
+
+//router.put(
+//  "/:webinarId/registrations/:id/attend",
+//  protect,
+//  authorize("admin"),
+//  markAttendance
+//);
 
 module.exports = router;

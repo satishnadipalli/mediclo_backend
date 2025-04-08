@@ -21,22 +21,7 @@ const WebinarRegistrationSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-    },
-    organization: {
-      type: String,
-    },
-    occupation: {
-      type: String,
-    },
-    status: {
-      type: String,
-      enum: ["registered", "attended", "cancelled"],
-      default: "registered",
-    },
-    attended: {
-      type: Boolean,
-      default: false,
-    },
+    }
   },
   {
     timestamps: true,

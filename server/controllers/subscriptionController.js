@@ -357,7 +357,7 @@ exports.deleteSubscription = async (req, res, next) => {
       );
     }
 
-    await subscription.remove();
+    await subscription.deleteOne();
 
     res.status(200).json({
       success: true,
@@ -563,7 +563,7 @@ exports.deleteSubscriptionPlan = async (req, res, next) => {
       );
     }
 
-    await plan.remove();
+    await plan.deleteOne();
 
     res.status(200).json({
       success: true,

@@ -140,6 +140,54 @@ exports.validateAppointment = [
   body("address").optional(),
 ];
 
+// @desc    Save appointment as draft
+// @route   POST /api/appointments/save-later
+// @access  Private (Admin/Receptionist)
+exports.saveAppointmentAsDraft = async (req, res, next) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      date,
+      startTime,
+      endTime,
+      notes,
+      serviceId,
+      address,
+      documents,
+      type,
+      therapistId,
+    } = req.body;
+
+    const draft = await Appointment.create({
+      fullName,
+      email,
+      phone,
+      date,
+      startTime,
+      endTime,
+      notes,
+      serviceId,
+      address,
+      documents,
+      type,
+      therapistId,
+      isDraft: true,
+      status: "pending", // or use a custom status like "draft"
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Appointment saved as draft",
+      data: draft,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 // @desc    Create appointment by receptionist
 // @route   POST /api/appointments
 // @access  Private (Admin, Receptionist)
@@ -314,7 +362,7 @@ exports.deleteAppointment = async (req, res) => {
       });
     }
 
-    await appointment.remove();
+    await appointment.deleteOne();
 
     res.status(200).json({
       success: true,

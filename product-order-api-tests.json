@@ -1,0 +1,237 @@
+{
+  "info": {
+    "name": "8-Senses Public Product Ordering API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "A collection for testing the public product ordering API"
+  },
+  "item": [
+    {
+      "name": "Product Browsing",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Retrieves all products"
+          }
+        },
+        {
+          "name": "Get Featured Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/featured",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "featured"]
+            },
+            "description": "Retrieves featured products"
+          }
+        },
+        {
+          "name": "Get Products by Category",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/category/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "category", "{{categoryId}}"]
+            },
+            "description": "Retrieves products by category ID"
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Retrieves a specific product by ID"
+          }
+        },
+        {
+          "name": "Get Product by Slug",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/slug/{{productSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "slug", "{{productSlug}}"]
+            },
+            "description": "Retrieves a specific product by slug"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Discount Management",
+      "item": [
+        {
+          "name": "Get Active Discounts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "discounts"]
+            },
+            "description": "Retrieves all active discount codes"
+          }
+        },
+        {
+          "name": "Validate Discount Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"WELCOME10\",\n    \"subtotal\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/validate-discount",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "validate-discount"]
+            },
+            "description": "Validates a discount code and returns discount details"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Management",
+      "item": [
+        {
+          "name": "Submit Public Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.reference) {",
+                  "    pm.environment.set('orderReference', jsonData.reference);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"1234567890\",\n    \"address1\": \"123 Main St\",\n    \"address2\": \"Apt 4B\",\n    \"city\": \"London\",\n    \"state\": \"Greater London\",\n    \"postalCode\": \"SW1A 1AA\",\n    \"country\": \"United Kingdom\",\n    \"items\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 2\n        }\n    ],\n    \"paymentMethod\": \"card\",\n    \"discountCode\": \"WELCOME10\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public"]
+            },
+            "description": "Submit a public product order without authentication"
+          }
+        },
+        {
+          "name": "Check Order Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/{{orderReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "{{orderReference}}"]
+            },
+            "description": "Check the status of a public order"
+          }
+        },
+        {
+          "name": "Submit Order (Invalid Product)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"1234567890\",\n    \"address1\": \"123 Main St\",\n    \"address2\": \"Apt 4B\",\n    \"city\": \"London\",\n    \"state\": \"Greater London\",\n    \"postalCode\": \"SW1A 1AA\",\n    \"country\": \"United Kingdom\",\n    \"items\": [\n        {\n            \"productId\": \"invalid_product_id\",\n            \"quantity\": 2\n        }\n    ],\n    \"paymentMethod\": \"card\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public"]
+            },
+            "description": "Attempt to submit an order with an invalid product ID"
+          }
+        },
+        {
+          "name": "Submit Order (Missing Required Fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"items\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 2\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public"]
+            },
+            "description": "Attempt to submit an order with missing required fields"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "replace_with_actual_product_id",
+      "type": "string"
+    },
+    {
+      "key": "productSlug",
+      "value": "replace_with_actual_product_slug",
+      "type": "string"
+    },
+    {
+      "key": "categoryId",
+      "value": "replace_with_actual_category_id",
+      "type": "string"
+    },
+    {
+      "key": "orderReference",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

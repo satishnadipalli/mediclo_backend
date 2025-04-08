@@ -190,7 +190,7 @@ exports.getOrder = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateOrderStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, trackingNumber, shippingDate } = req.body;
 
     if (!status) {
       return next(new ErrorResponse("Please provide a status", 400));
@@ -216,6 +216,16 @@ exports.updateOrderStatus = async (req, res, next) => {
         }
       }
     } else if (status === "shipped" && order.status !== "shipped") {
+      // Validate tracking number for shipped orders
+      if (!trackingNumber) {
+        return next(
+          new ErrorResponse(
+            "Tracking number is required for shipped orders",
+            400
+          )
+        );
+      }
+
       // When shipped, ensure quantities are deducted (if they haven't been already)
       for (const item of order.items) {
         const product = await Product.findById(item.product);
@@ -230,12 +240,22 @@ exports.updateOrderStatus = async (req, res, next) => {
     order.status = status;
     order.updatedAt = Date.now();
 
-    if (status === "shipped" && req.body.trackingNumber) {
-      order.trackingNumber = req.body.trackingNumber;
-    }
+    // Handle shipping-related updates
+    if (status === "shipped") {
+      // Update tracking number
+      order.trackingNumber = trackingNumber;
 
-    if (status === "shipped" && req.body.estimatedDelivery) {
-      order.estimatedDelivery = new Date(req.body.estimatedDelivery);
+      // Update shipping date
+      if (shippingDate) {
+        order.shippingDate = new Date(shippingDate);
+      } else {
+        order.shippingDate = new Date(); // Default to today if not provided
+      }
+
+      // Set estimated delivery (7 days after shipping by default)
+      const estimatedDate = new Date(order.shippingDate);
+      estimatedDate.setDate(estimatedDate.getDate() + 7);
+      order.estimatedDelivery = estimatedDate;
     }
 
     await order.save();
@@ -285,7 +305,7 @@ exports.deleteOrder = async (req, res, next) => {
       }
     }
 
-    await order.remove();
+    await order.deleteOne();
 
     res.status(200).json({
       success: true,

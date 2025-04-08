@@ -361,7 +361,7 @@ exports.deleteDiscount = async (req, res, next) => {
       );
     }
 
-    await discount.remove();
+    await discount.deleteOne();
 
     res.status(200).json({
       success: true,

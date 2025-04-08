@@ -10,7 +10,9 @@ exports.validateCourse = [
     .withMessage("Please add a course title")
     .isLength({ max: 100 })
     .withMessage("Course title cannot be more than 100 characters"),
+    
   body("instructor").optional(),
+
   body("price")
     .notEmpty()
     .withMessage("Please add a price")
@@ -18,13 +20,30 @@ exports.validateCourse = [
     .withMessage("Price must be a number")
     .custom((value) => value >= 0)
     .withMessage("Price must be at least 0"),
+
   body("description").notEmpty().withMessage("Please add a course description"),
+
   body("thumbnail").notEmpty().withMessage("Please upload a course thumbnail"),
-  body("category").notEmpty().withMessage("Please select a course category"),
+
+  body("category")
+    .notEmpty()
+    .withMessage("Please select a course category")
+    .isIn([
+      "therapy",
+      "mental health",
+      "parenting",
+      "education",
+      "counseling",
+      "wellness",
+      "other",
+    ])
+    .withMessage("Invalid course category"),
+
   body("status")
     .optional()
     .isIn(["draft", "published", "archived", "active"])
     .withMessage("Invalid status value"),
+
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -37,13 +56,9 @@ exports.validateCourse = [
   },
 ];
 
+// Video validation (now only validates the video URL)
 exports.validateCourseVideo = [
   body("url").notEmpty().withMessage("Please add a video URL"),
-  body("title").notEmpty().withMessage("Please add a video title"),
-  body("duration")
-    .optional()
-    .isNumeric()
-    .withMessage("Duration must be a number"),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -56,6 +71,7 @@ exports.validateCourseVideo = [
   },
 ];
 
+// Status update validation (still valid)
 exports.validateCourseStatus = [
   body("status")
     .notEmpty()
@@ -73,6 +89,7 @@ exports.validateCourseStatus = [
     next();
   },
 ];
+
 
 // @desc    Get all courses
 // @route   GET /api/courses
@@ -232,7 +249,7 @@ exports.deleteCourse = async (req, res, next) => {
       );
     }
 
-    await course.remove();
+    await course.deleteOne();
 
     res.status(200).json({
       success: true,

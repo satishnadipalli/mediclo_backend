@@ -184,6 +184,10 @@ const AppointmentSchema = new mongoose.Schema(
     assignedAt: {
       type: Date,
     },
+    isDraft: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

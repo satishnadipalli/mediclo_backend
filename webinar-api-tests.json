@@ -1,0 +1,291 @@
+{
+  "info": {
+    "name": "8-Senses Webinar API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "A collection for testing webinar-related APIs"
+  },
+  "item": [
+    {
+      "name": "Webinar Public Endpoints",
+      "item": [
+        {
+          "name": "Get All Webinars",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars"]
+            },
+            "description": "Retrieves all webinars"
+          }
+        },
+        {
+          "name": "Get Upcoming Webinars",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/upcoming",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "upcoming"]
+            },
+            "description": "Retrieves only upcoming webinars"
+          }
+        },
+        {
+          "name": "Get Single Webinar",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/{{webinarId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "{{webinarId}}"]
+            },
+            "description": "Retrieves a specific webinar by ID"
+          }
+        },
+        {
+          "name": "Register for Webinar (Public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test User\",\n    \"email\": \"test@example.com\",\n    \"phone\": \"1234567890\",\n    \"organization\": \"Test Organization\",\n    \"occupation\": \"Software Developer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/public/register/{{webinarId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "public", "register", "{{webinarId}}"]
+            },
+            "description": "Register for a webinar without authentication"
+          }
+        },
+        {
+          "name": "Register Duplicate (Error Test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test User\",\n    \"email\": \"test@example.com\",\n    \"phone\": \"1234567890\",\n    \"organization\": \"Test Organization\",\n    \"occupation\": \"Software Developer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/public/register/{{webinarId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "public", "register", "{{webinarId}}"]
+            },
+            "description": "Attempts to register with the same email (should fail)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Operations",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set('authToken', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login to get admin token for protected routes"
+          }
+        },
+        {
+          "name": "Create Webinar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Introduction to Sensory Integration\",\n    \"speaker\": \"Dr. Jane Smith\",\n    \"date\": \"2023-12-30T10:00:00.000Z\",\n    \"duration\": 60,\n    \"startTime\": \"10:00 AM\",\n    \"maxRegistrations\": 100,\n    \"url\": \"https://zoom.us/j/123456789\",\n    \"thumbnail\": \"https://example.com/webinar-thumbnail.jpg\",\n    \"description\": \"Learn about sensory integration therapy and its applications in clinical practice.\",\n    \"tags\": [\"therapy\", \"sensory integration\", \"clinical\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars"]
+            },
+            "description": "Create a new webinar (admin only)"
+          }
+        },
+        {
+          "name": "Update Webinar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Updated: Introduction to Sensory Integration\",\n    \"description\": \"Updated description with more details about sensory integration therapy.\",\n    \"maxRegistrations\": 150\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/{{webinarId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "{{webinarId}}"]
+            },
+            "description": "Update an existing webinar (admin only)"
+          }
+        },
+        {
+          "name": "Update Webinar Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"live\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/{{webinarId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "{{webinarId}}", "status"]
+            },
+            "description": "Update the status of a webinar (admin only)"
+          }
+        },
+        {
+          "name": "Get Webinar Registrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/{{webinarId}}/registrations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "{{webinarId}}", "registrations"]
+            },
+            "description": "Get all registrations for a webinar (admin only)"
+          }
+        },
+        {
+          "name": "Mark Attendance",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/{{webinarId}}/registrations/{{registrationId}}/attend",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "webinars",
+                "{{webinarId}}",
+                "registrations",
+                "{{registrationId}}",
+                "attend"
+              ]
+            },
+            "description": "Mark a registration as attended (admin only)"
+          }
+        },
+        {
+          "name": "Delete Webinar",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/webinars/{{webinarId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webinars", "{{webinarId}}"]
+            },
+            "description": "Delete a webinar and its registrations (admin only)"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "webinarId",
+      "value": "replace_with_actual_webinar_id",
+      "type": "string"
+    },
+    {
+      "key": "registrationId",
+      "value": "replace_with_actual_registration_id",
+      "type": "string"
+    }
+  ]
+}

@@ -1,0 +1,360 @@
+{
+  "info": {
+    "name": "Subscription API Tests",
+    "description": "Collection for testing subscription endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public Endpoints",
+      "item": [
+        {
+          "name": "Get All Subscription Plans",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "plans"]
+            },
+            "description": "Get all active subscription plans"
+          }
+        },
+        {
+          "name": "Get Subscription Plan by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/plans/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "plans", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "planId",
+                  "description": "ID of the subscription plan"
+                }
+              ]
+            },
+            "description": "Get a specific subscription plan by ID"
+          }
+        },
+        {
+          "name": "Create Public Subscription",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "public"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"1234567890\",\n    \"planId\": \"planId\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create a subscription for a public user (no login required)"
+          }
+        },
+        {
+          "name": "Check Subscription Status by Email",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/check/:email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "check", ":email"],
+              "variable": [
+                {
+                  "key": "email",
+                  "value": "john.doe@example.com",
+                  "description": "Email to check subscription status"
+                }
+              ]
+            },
+            "description": "Check subscription status for a specific email"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Endpoints",
+      "item": [
+        {
+          "name": "Get All Subscriptions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions"]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "description": "Get all subscriptions (admin only)"
+          }
+        },
+        {
+          "name": "Get Subscription by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "subscriptionId",
+                  "description": "ID of the subscription"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "description": "Get a specific subscription by ID (admin only)"
+          }
+        },
+        {
+          "name": "Create Subscription (Admin)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions"]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user\": \"userId\",\n    \"name\": \"Jane Doe\",\n    \"email\": \"jane.doe@example.com\",\n    \"phone\": \"0987654321\",\n    \"plan\": \"planId\",\n    \"currentTier\": \"Basic\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create a subscription for a user (admin only)"
+          }
+        },
+        {
+          "name": "Update Subscription",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "subscriptionId",
+                  "description": "ID of the subscription"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"autoRenew\": false,\n    \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update a subscription (admin only)"
+          }
+        },
+        {
+          "name": "Delete Subscription",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "subscriptionId",
+                  "description": "ID of the subscription"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "description": "Delete a subscription (admin only)"
+          }
+        },
+        {
+          "name": "Renew Subscription",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/:id/renew",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", ":id", "renew"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "subscriptionId",
+                  "description": "ID of the subscription"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"paymentMethod\": \"card\",\n    \"transactionId\": \"txn_123456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Renew a subscription (admin only)"
+          }
+        },
+        {
+          "name": "Create Subscription Plan",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "plans"]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Premium Plan\",\n    \"description\": \"Our premium subscription plan with all features\",\n    \"status\": \"active\",\n    \"price\": 99.99,\n    \"billingCycle\": \"monthly\",\n    \"features\": {\n        \"accessToWebinars\": true,\n        \"customerDiscounts\": true,\n        \"autoRenewal\": true,\n        \"displayOnPricingPage\": true,\n        \"accessToPremiumCourses\": true\n    },\n    \"gracePeriod\": 7,\n    \"order\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create a subscription plan (admin only)"
+          }
+        },
+        {
+          "name": "Update Subscription Plan",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/plans/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "plans", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "planId",
+                  "description": "ID of the subscription plan"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"price\": 89.99,\n    \"description\": \"Updated premium plan description\",\n    \"gracePeriod\": 14\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update a subscription plan (admin only)"
+          }
+        },
+        {
+          "name": "Delete Subscription Plan",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/subscriptions/plans/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subscriptions", "plans", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "planId",
+                  "description": "ID of the subscription plan"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "description": "Admin authentication token"
+              }
+            ],
+            "description": "Delete a subscription plan (admin only)"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "yourAdminTokenHere",
+      "type": "string"
+    }
+  ]
+}

@@ -28,6 +28,7 @@ router.use(protect, authorize("admin"));
 router.get("/", getOrders);
 router.get("/:id", getOrder);
 router.put("/:id/status", updateOrderStatus);
+router.put("/:id/shipping", updateOrderStatus);
 router.post(
   "/:id/refund",
   refundOrderValidation,

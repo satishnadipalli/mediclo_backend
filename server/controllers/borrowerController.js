@@ -286,7 +286,7 @@ exports.deleteBorrower = async (req, res) => {
       });
     }
 
-    await borrower.remove();
+    await borrower.deleteOne();
 
     res.status(200).json({
       success: true,

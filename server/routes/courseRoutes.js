@@ -35,8 +35,8 @@ router.put("/:id", validateCourse, updateCourse);
 router.delete("/:id", deleteCourse);
 
 // Course videos
-router.post("/:id/videos", validateCourseVideo, addCourseVideo);
-router.delete("/:id/videos/:videoId", deleteCourseVideo);
+//router.post("/:id/videos", validateCourseVideo, addCourseVideo);
+//router.delete("/:id/videos/:videoId", deleteCourseVideo);
 
 // Course status
 router.put("/:id/status", validateCourseStatus, updateCourseStatus);

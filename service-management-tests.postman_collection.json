@@ -1,0 +1,654 @@
+{
+  "info": {
+    "_postman_id": "85e7cf3c-e5e4-4d2f-a98c-1a14d5b0f793",
+    "name": "8Senses Service Management",
+    "description": "API collection for testing service management features",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "",
+                  "if (jsonData.success === true) {",
+                  "    pm.environment.set(\"adminToken\", jsonData.token);",
+                  "    pm.test(\"Admin token saved to environment\", function() {",
+                  "        pm.expect(pm.environment.get(\"adminToken\")).to.not.be.undefined;",
+                  "    });",
+                  "} else {",
+                  "    pm.test(\"Login failed\", function() {",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as admin to get authentication token"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints for getting tokens"
+    },
+    {
+      "name": "Public Service Endpoints",
+      "item": [
+        {
+          "name": "Get All Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Get all services (publicly accessible)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services", "{{serviceId}}"]
+            },
+            "description": "Get a specific service by ID (publicly accessible)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/services/category/Occupational Therapy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services", "category", "Occupational Therapy"]
+            },
+            "description": "Get services filtered by category (publicly accessible)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/services?category=Speech Therapy&isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Speech Therapy"
+                },
+                {
+                  "key": "isActive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Get services with query filters (publicly accessible)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints that are accessible without authentication"
+    },
+    {
+      "name": "Admin Service Endpoints",
+      "item": [
+        {
+          "name": "Create Service - Pediatric Consultations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Pediatric Consultations\",\n    \"description\": \"Expert consultations and tailored intervention programs for children with developmental concerns.\",\n    \"category\": \"Consultation\",\n    \"duration\": 60,\n    \"price\": 1500\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Occupational Therapy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Occupational Therapy\",\n    \"description\": \"Helps people across the lifespan participate in the things they want and need to do through therapeutic use of daily activities.\",\n    \"category\": \"Occupational Therapy\",\n    \"duration\": 45,\n    \"price\": 1200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Sensory Integration Therapy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Sensory Integration Therapy\",\n    \"description\": \"Therapy that helps children with sensory processing difficulties organize and respond appropriately to sensory information.\",\n    \"category\": \"Occupational Therapy\",\n    \"duration\": 50,\n    \"price\": 1300\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Hand Therapy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Hand Therapy\",\n    \"description\": \"Specialized therapy focused on rehabilitation of the hand and upper extremities after injury or surgery.\",\n    \"category\": \"Occupational Therapy\",\n    \"duration\": 40,\n    \"price\": 1100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Neuro Developmental Therapy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Neuro Developmental Therapy\",\n    \"description\": \"Therapeutic approach for children with neurological conditions affecting movement, posture, and coordination.\",\n    \"category\": \"Physical Therapy\",\n    \"duration\": 55,\n    \"price\": 1400\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Language and Speech Therapy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Language and Speech Therapy\",\n    \"description\": \"Therapy to improve communication skills, language comprehension, and expression.\",\n    \"category\": \"Speech Therapy\",\n    \"duration\": 45,\n    \"price\": 1200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Oral Placement Therapy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Oral Placement Therapy\",\n    \"description\": \"Therapy focusing on oral motor movements to improve speech clarity and feeding skills.\",\n    \"category\": \"Speech Therapy\",\n    \"duration\": 40,\n    \"price\": 1100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Voice Treatments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Voice Treatments\",\n    \"description\": \"Therapy for voice disorders, improving vocal quality, and restoring healthy voice production.\",\n    \"category\": \"Speech Therapy\",\n    \"duration\": 45,\n    \"price\": 1200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Fluency and Stuttering Treatment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Fluency and Stuttering Treatment\",\n    \"description\": \"Specialized therapy to improve speech fluency and reduce stuttering behaviors.\",\n    \"category\": \"Speech Therapy\",\n    \"duration\": 50,\n    \"price\": 1300\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Neonatal Hearing Screening",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Neonatal Hearing Screening\",\n    \"description\": \"Early detection of potential hearing issues in newborns to ensure timely intervention.\",\n    \"category\": \"Assessment\",\n    \"duration\": 30,\n    \"price\": 800\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Prenatal Counselling",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Prenatal Counselling\",\n    \"description\": \"Supportive counseling for expectant parents to prepare for child development and potential challenges.\",\n    \"category\": \"Consultation\",\n    \"duration\": 60,\n    \"price\": 1000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service - Counselling Services",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Counselling Services for Patients\",\n    \"description\": \"Supportive psychological counseling for patients and families dealing with developmental and health challenges.\",\n    \"category\": \"Consultation\",\n    \"duration\": 50,\n    \"price\": 1200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services"]
+            },
+            "description": "Create a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"price\": 1250,\n    \"duration\": 45,\n    \"description\": \"Updated description with more details about the service.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services", "{{serviceId}}"]
+            },
+            "description": "Update an existing service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "services", "{{serviceId}}"]
+            },
+            "description": "Delete a service (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints that require admin authentication"
+    },
+    {
+      "name": "Service-Appointment Integration",
+      "item": [
+        {
+          "name": "Create Appointment with Service",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"fullName\": \"Test Patient\",\n    \"email\": \"patient@example.com\",\n    \"phone\": \"+919876543210\",\n    \"therapistId\": \"{{therapistId}}\",\n    \"serviceId\": \"{{serviceId}}\",\n    \"date\": \"2023-12-15\",\n    \"startTime\": \"10:00\",\n    \"endTime\": \"11:00\",\n    \"type\": \"initial assessment\",\n    \"notes\": \"Initial appointment for evaluation\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments"]
+            },
+            "description": "Create an appointment linked to a specific service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Appointment with Service Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "{{appointmentId}}"]
+            },
+            "description": "Get details of a specific appointment including the linked service information"
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Public Appointment with Service Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"fullName\": \"Public User\",\n    \"email\": \"public@example.com\",\n    \"phone\": \"+919876543210\",\n    \"dateTime\": \"2023-12-20T14:00:00\",\n    \"reason\": \"Need consultation for my child\",\n    \"serviceType\": \"Occupational Therapy\",\n    \"specialist\": \"Any available specialist\",\n    \"consultationMode\": \"in-person\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "public"]
+            },
+            "description": "Submit a public appointment request with service type information"
+          },
+          "response": []
+        }
+      ],
+      "description": "Tests for the integration between services and appointments"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "serviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "therapistId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "appointmentId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

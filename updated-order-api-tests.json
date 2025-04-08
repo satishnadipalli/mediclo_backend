@@ -1,0 +1,229 @@
+{
+  "info": {
+    "name": "8-Senses Updated Order API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "A collection for testing the updated order API"
+  },
+  "item": [
+    {
+      "name": "Public Order Endpoints",
+      "item": [
+        {
+          "name": "Submit Public Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.reference) {",
+                  "    pm.environment.set('orderReference', jsonData.reference);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"1234567890\",\n    \"address1\": \"123 Main St\",\n    \"address2\": \"Apt 4B\",\n    \"city\": \"London\",\n    \"state\": \"Greater London\",\n    \"postalCode\": \"SW1A 1AA\",\n    \"country\": \"United Kingdom\",\n    \"items\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 2\n        }\n    ],\n    \"paymentMethod\": \"card\",\n    \"discountCode\": \"WELCOME10\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public"]
+            },
+            "description": "Submit a public product order without authentication"
+          }
+        },
+        {
+          "name": "Check Order Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/{{orderReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "{{orderReference}}"]
+            },
+            "description": "Check the status of a public order"
+          }
+        },
+        {
+          "name": "Get Active Discounts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "discounts"]
+            },
+            "description": "Retrieves all active discount codes"
+          }
+        },
+        {
+          "name": "Validate Discount Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"WELCOME10\",\n    \"subtotal\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/validate-discount",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "validate-discount"]
+            },
+            "description": "Validates a discount code and returns discount details"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Order Endpoints",
+      "item": [
+        {
+          "name": "Get All Orders (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            },
+            "description": "Retrieves all orders (admin only)"
+          }
+        },
+        {
+          "name": "Get Order by ID (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderReference}}"]
+            },
+            "description": "Retrieves a specific order by ID (admin only)"
+          }
+        },
+        {
+          "name": "Update Order Status (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"processing\",\n    \"trackingNumber\": \"TRACK123456\",\n    \"estimatedDelivery\": \"2023-06-30T12:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderReference}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderReference}}", "status"]
+            },
+            "description": "Updates the status of an order (admin only)"
+          }
+        },
+        {
+          "name": "Process Refund (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Customer requested refund\",\n    \"amount\": 50,\n    \"isFullRefund\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderReference}}/refund",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderReference}}", "refund"]
+            },
+            "description": "Processes a refund for an order (admin only)"
+          }
+        },
+        {
+          "name": "Delete Order (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderReference}}"]
+            },
+            "description": "Deletes an order (admin only)"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "replace_with_actual_product_id",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "replace_with_admin_jwt_token",
+      "type": "string"
+    },
+    {
+      "key": "orderReference",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

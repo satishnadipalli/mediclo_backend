@@ -240,7 +240,7 @@ exports.deleteToy = async (req, res) => {
     await ToyUnit.deleteMany({ toyId: toy._id });
 
     // Delete the toy
-    await toy.remove();
+    await toy.deleteOne();
 
     res.status(200).json({
       success: true,
@@ -396,7 +396,7 @@ exports.deleteToyUnit = async (req, res) => {
     const toy = await Toy.findById(toyUnit.toyId);
 
     // Delete the unit
-    await toyUnit.remove();
+    await toyUnit.deleteOne();
 
     if (toy) {
       // Update toy counts

@@ -22,6 +22,7 @@ const {
   submitPublicAppointment,
   validatePublicAppointment,
   checkPublicAppointmentStatus,
+  saveAppointmentAsDraft
 } = require("../controllers/appointmentController");
 
 // Public routes - no authentication needed
@@ -48,6 +49,14 @@ router
     validateRequest,
     createAppointment
   );
+
+  router.post(
+    "/save-later",
+    protect,
+    authorize("admin", "receptionist"),
+    saveAppointmentAsDraft
+  );
+  
 
 // Get/update/delete specific appointment
 router

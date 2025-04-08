@@ -22,6 +22,10 @@ const SubscriptionPlanSchema = new mongoose.Schema(
       type: String,
       enum: ["monthly", "quarterly", "biannual", "annual"],
     },
+    trialPeriod: {
+      type: Number, // Days
+      default: 0,
+    },
     features: {
       accessToWebinars: {
         type: Boolean,

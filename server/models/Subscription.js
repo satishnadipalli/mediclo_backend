@@ -2,11 +2,6 @@ const mongoose = require("mongoose");
 
 const SubscriptionSchema = new mongoose.Schema(
   {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: false,
-    },
     name: {
       type: String,
       required: [true, "Please add a name"],
@@ -18,6 +13,7 @@ const SubscriptionSchema = new mongoose.Schema(
         /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
         "Please add a valid email",
       ],
+      unique: true,
     },
     phone: {
       type: String,

@@ -1,0 +1,739 @@
+{
+  "info": {
+    "_postman_id": "e2a5f3c7-4b96-4d87-b66e-5f3d8c9c1a92",
+    "name": "8Senses E-Commerce API",
+    "description": "Complete collection for testing all e-commerce related endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "",
+                  "if (jsonData.success === true) {",
+                  "    pm.environment.set(\"adminToken\", jsonData.token);",
+                  "    console.log(\"Admin token saved to environment\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as admin to get JWT token for protected routes"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints for accessing protected routes"
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Get a list of all products"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Products (with filters)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?category={{categoryId}}&price[gte]=100&price[lte]=1000&sort=-price&limit=10&page=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{categoryId}}"
+                },
+                {
+                  "key": "price[gte]",
+                  "value": "100"
+                },
+                {
+                  "key": "price[lte]",
+                  "value": "1000"
+                },
+                {
+                  "key": "sort",
+                  "value": "-price"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Get products with filtering, sorting and pagination options"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Get a single product by its ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product By Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/slug/{{productSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "slug", "{{productSlug}}"]
+            },
+            "description": "Get a single product by its slug"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Featured Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/featured",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "featured"]
+            },
+            "description": "Get featured products"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Products By Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/category/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "category", "{{categoryId}}"]
+            },
+            "description": "Get products by category ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "",
+                  "if (jsonData.success === true && jsonData.data && jsonData.data._id) {",
+                  "    pm.environment.set(\"productId\", jsonData.data._id);",
+                  "    pm.environment.set(\"productSlug\", jsonData.data.slug);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Premium Therapy Ball Set\",\n    \"description\": \"A set of therapy balls in various sizes and textures to help with sensory therapy and motor skills development.\",\n    \"shortDescription\": \"Therapy balls for sensory integration\",\n    \"price\": 1299.99,\n    \"discountType\": \"percentage\",\n    \"discountValue\": 10,\n    \"category\": \"{{categoryId}}\",\n    \"images\": [\n        {\n            \"url\": \"https://example.com/images/therapy-balls.jpg\",\n            \"alt\": \"Therapy ball set\",\n            \"isMain\": true\n        }\n    ],\n    \"tags\": [\"therapy\", \"sensory\", \"motor skills\"],\n    \"features\": [\"Various sizes\", \"Different textures\", \"Durable materials\"],\n    \"specifications\": [\n        {\n            \"name\": \"Material\",\n            \"value\": \"Medical-grade silicone\"\n        },\n        {\n            \"name\": \"Ages\",\n            \"value\": \"3-12 years\"\n        }\n    ],\n    \"status\": \"active\",\n    \"isActive\": true,\n    \"isFeatured\": true,\n    \"initialQuantity\": 50,\n    \"lowStockThreshold\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "admin"]
+            },
+            "description": "Create a new product (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"price\": 1199.99,\n    \"discountType\": \"percentage\",\n    \"discountValue\": 15,\n    \"isActive\": true,\n    \"isFeatured\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/admin/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "admin", "{{productId}}"]
+            },
+            "description": "Update an existing product (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/admin/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "admin", "{{productId}}"]
+            },
+            "description": "Delete a product (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing products"
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories"]
+            },
+            "description": "Get all product categories"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category Tree",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/tree",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories", "tree"]
+            },
+            "description": "Get categories organized in a hierarchical tree structure"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories", "{{categoryId}}"]
+            },
+            "description": "Get category by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "",
+                  "if (jsonData.success === true && jsonData.data && jsonData.data._id) {",
+                  "    pm.environment.set(\"categoryId\", jsonData.data._id);",
+                  "    pm.environment.set(\"categorySlug\", jsonData.data.slug);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Therapy Tools\",\n    \"description\": \"Professional tools used for various therapy sessions\",\n    \"categoryType\": \"product\",\n    \"image\": \"https://example.com/images/therapy-tools.jpg\",\n    \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories"]
+            },
+            "description": "Create a new category (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing product categories"
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "Get All Inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inventory"]
+            },
+            "description": "Get all inventory items (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Low Stock Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/low-stock",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inventory", "low-stock"]
+            },
+            "description": "Get inventory items that are below their low stock threshold (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/product/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inventory", "product", "{{productId}}"]
+            },
+            "description": "Get inventory for a specific product (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Stock",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"productId\": \"{{productId}}\",\n    \"newStock\": 45,\n    \"notes\": \"Restocked from supplier\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/update-stock",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inventory", "update-stock"]
+            },
+            "description": "Update inventory stock level (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing product inventory"
+    },
+    {
+      "name": "Discounts",
+      "item": [
+        {
+          "name": "Get Active Discounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "discounts"]
+            },
+            "description": "Get active discount codes available for public use"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Discount Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"WELCOME10\",\n    \"cartTotal\": 1500\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts", "validate"]
+            },
+            "description": "Validate a discount code and get discount amount"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Discount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "",
+                  "if (jsonData.success === true && jsonData.data && jsonData.data._id) {",
+                  "    pm.environment.set(\"discountId\", jsonData.data._id);",
+                  "    pm.environment.set(\"discountCode\", jsonData.data.code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"WELCOME10\",\n    \"description\": \"10% off for new customers\",\n    \"type\": \"percentage\",\n    \"value\": 10,\n    \"minOrderAmount\": 500,\n    \"maxDiscountAmount\": 2000,\n    \"isActive\": true,\n    \"startDate\": \"2023-01-01\",\n    \"endDate\": \"2023-12-31\",\n    \"usageLimit\": 1000,\n    \"perUserLimit\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts"]
+            },
+            "description": "Create a new discount code (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing discount codes"
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Submit Public Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "",
+                  "if (jsonData.success === true && jsonData.data && jsonData.data._id) {",
+                  "    pm.environment.set(\"orderId\", jsonData.data._id);",
+                  "    pm.environment.set(\"orderNumber\", jsonData.data.orderNumber);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+91 9876543210\",\n    \"address1\": \"123 Main St\",\n    \"address2\": \"Apt 4B\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"postalCode\": \"400001\",\n    \"country\": \"India\",\n    \"items\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 2\n        }\n    ],\n    \"paymentMethod\": \"cash_on_delivery\",\n    \"discountCode\": \"{{discountCode}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public"]
+            },
+            "description": "Submit an order without authentication"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            },
+            "description": "Get all orders (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            },
+            "description": "Get a specific order by ID (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"processing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}", "status"]
+            },
+            "description": "Update an order's status (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Process Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Customer requested refund - defective product\",\n    \"amount\": 1299.99,\n    \"isFullRefund\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/refund",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}", "refund"]
+            },
+            "description": "Process a refund for an order (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing orders"
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Get All Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions"]
+            },
+            "description": "Get all transactions (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order\": \"{{orderId}}\",\n    \"amount\": 1299.99,\n    \"paymentMethod\": \"cash_on_delivery\",\n    \"status\": \"completed\",\n    \"transactionDetails\": {\n        \"receiptNumber\": \"RCP-12345\",\n        \"notes\": \"Payment received in cash\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions"]
+            },
+            "description": "Create a transaction record (admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing financial transactions"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ]
+}

@@ -1,0 +1,713 @@
+{
+  "info": {
+    "_postman_id": "8738e6b1-d5e3-4c21-8f53-e5b8e3ade245",
+    "name": "8Senses Order Management",
+    "description": "A comprehensive collection for testing the Order Management API of 8Senses platform. Includes functionality for customer orders, admin order management, discounts, and payment processing.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Authentication requests required for order management",
+      "item": [
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Log in as an admin to get authorization token for admin endpoints"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.token) {",
+                  "    pm.environment.set('adminToken', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public Order Endpoints",
+      "description": "Endpoints for customer order operations without authentication",
+      "item": [
+        {
+          "name": "Submit Public Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+44123456789\",\n    \"address1\": \"123 Main St\",\n    \"address2\": \"Apt 4B\",\n    \"city\": \"London\",\n    \"state\": \"Greater London\",\n    \"postalCode\": \"SW1A 1AA\",\n    \"country\": \"United Kingdom\",\n    \"items\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 2\n        }\n    ],\n    \"paymentMethod\": \"card\",\n    \"discountCode\": \"WELCOME10\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public"]
+            },
+            "description": "Submit a product order without authentication"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.reference) {",
+                  "    pm.environment.set('publicOrderId', jsonData.reference);",
+                  "    pm.environment.set('orderNumber', jsonData.orderNumber);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Public Order Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/{{publicOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "{{publicOrderId}}"]
+            },
+            "description": "Check the status of a public order using its ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Discount Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"WELCOME10\",\n    \"subtotal\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/validate-discount",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "validate-discount"]
+            },
+            "description": "Validate a discount code and get discount information"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Active Discounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/public/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "public", "discounts"]
+            },
+            "description": "Get all active discount codes available for public use"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Order Endpoints",
+      "description": "Endpoints for admin management of orders (requires authentication)",
+      "item": [
+        {
+          "name": "Get All Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get a list of all orders with pagination and filtering options"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{publicOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{publicOrderId}}"]
+            },
+            "description": "Get detailed information about a specific order by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"processing\",\n    \"trackingNumber\": \"TRK123456789\",\n    \"estimatedDelivery\": \"2023-12-25T00:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{publicOrderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{publicOrderId}}", "status"]
+            },
+            "description": "Update an order's status (pending, processing, shipped, delivered, cancelled, refunded)"
+          },
+          "response": []
+        },
+        {
+          "name": "Process Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Customer request\",\n    \"amount\": 50,\n    \"isFullRefund\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{publicOrderId}}/refund",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{publicOrderId}}", "refund"]
+            },
+            "description": "Process a refund for an order (full or partial)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Order",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{publicOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{publicOrderId}}"]
+            },
+            "description": "Delete an order (only if it has no associated transactions)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Discount Management",
+      "description": "Endpoints for managing discount codes (admin only)",
+      "item": [
+        {
+          "name": "Create Discount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"SUMMER25\",\n    \"discountValue\": 25,\n    \"startDate\": \"2023-06-01T00:00:00.000Z\",\n    \"endDate\": \"2023-08-31T23:59:59.999Z\",\n    \"isActive\": true,\n    \"usageLimit\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts"]
+            },
+            "description": "Create a new discount code"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data._id) {",
+                  "    pm.environment.set('discountId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Discounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts"]
+            },
+            "description": "Get a list of all discount codes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Discount By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts/{{discountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts", "{{discountId}}"]
+            },
+            "description": "Get a specific discount code by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Discount",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"discountValue\": 30,\n    \"endDate\": \"2023-09-15T23:59:59.999Z\",\n    \"usageLimit\": 150,\n    \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts/{{discountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts", "{{discountId}}"]
+            },
+            "description": "Update an existing discount code"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Discount",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/discounts/{{discountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discounts", "{{discountId}}"]
+            },
+            "description": "Delete a discount code"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transaction Management",
+      "description": "Endpoints for managing payment transactions",
+      "item": [
+        {
+          "name": "Get Order Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/order/{{publicOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "order", "{{publicOrderId}}"]
+            },
+            "description": "Get all transactions related to a specific order"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order\": \"{{publicOrderId}}\",\n    \"amount\": 100,\n    \"paymentMethod\": \"card\",\n    \"status\": \"successful\",\n    \"paymentDetails\": {\n        \"cardType\": \"Visa\",\n        \"lastFour\": \"1234\",\n        \"expiryDate\": \"12/25\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions"]
+            },
+            "description": "Create a new payment transaction"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data._id) {",
+                  "    pm.environment.set('transactionId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Transaction Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"successful\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "{{transactionId}}", "status"]
+            },
+            "description": "Update a transaction's status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "successful",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get a list of all transactions with filtering options"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Transaction By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "{{transactionId}}"]
+            },
+            "description": "Get a specific transaction by ID"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Order Reports and Analytics",
+      "description": "Endpoints for generating order reports and analytics",
+      "item": [
+        {
+          "name": "Get Order Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/orders/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "orders", "summary"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get a summary of orders by status and time period"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/revenue",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "revenue"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "monthly",
+                  "disabled": true
+                },
+                {
+                  "key": "year",
+                  "value": "2023",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get revenue report by time period (daily, weekly, monthly, yearly)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Sales Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/product-sales",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "product-sales"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get a report of top-selling products"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "61d5c2a8e4b0e3d1fd8d4e9c",
+      "type": "string"
+    },
+    {
+      "key": "publicOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "discountId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
