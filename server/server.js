@@ -74,7 +74,13 @@ app.use(xss());
 app.use(hpp());
 
 // Enable CORS
-app.use(cors());
+const corsOptions = {
+  origin: "http://localhost:3000", // or whatever your frontend URL is
+  credentials: true, // if using cookies or authentication
+  methods: ["GET", "POST", "PUT", "DELETE"],
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting
 // const limiter = rateLimit({
