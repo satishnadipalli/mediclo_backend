@@ -75,8 +75,7 @@ app.use(hpp());
 
 // Enable CORS
 const corsOptions = {
-  origin: "http://localhost:3000", // or whatever your frontend URL is
-  credentials: true, // if using cookies or authentication
+  origin: "http://localhost:3000",
   methods: ["GET", "POST", "PUT", "DELETE"],
 };
 
