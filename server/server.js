@@ -40,6 +40,8 @@ const discountRoutes = require("./routes/discountRoutes");
 // Add new routes
 const galleryRoutes = require("./routes/galleryRoutes");
 const diseaseRoutes = require("./routes/diseaseRoutes");
+//Add shipping-routes
+const shippingRoutes = require("./routes/orderRoutes");
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -120,6 +122,8 @@ app.use("/api/discounts", discountRoutes);
 // Mount new routes
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/diseases", diseaseRoutes);
+//shipping routes for admin dash
+app.use("/api/shipping", shippingRoutes);
 
 // Root route
 app.get("/", (req, res) => {
