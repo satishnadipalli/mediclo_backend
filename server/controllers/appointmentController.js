@@ -138,6 +138,8 @@ exports.validateAppointment = [
   body("type").notEmpty().withMessage("Appointment type is required"),
   body("notes").optional(),
   body("address").optional(),
+  body("totalSessions").optional().isInt({ min: 0 }),
+  body("sessionsPaid").optional().isInt({ min: 0 }),
 ];
 
 // @desc    Save appointment as draft
@@ -186,7 +188,6 @@ exports.saveAppointmentAsDraft = async (req, res, next) => {
     next(err);
   }
 };
-
 
 // @desc    Create appointment by receptionist
 // @route   POST /api/appointments

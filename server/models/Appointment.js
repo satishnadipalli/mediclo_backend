@@ -160,6 +160,18 @@ const AppointmentSchema = new mongoose.Schema(
       },
       default: false,
     },
+    //
+    //total number of sessions prescribed by therapist
+    totalSessions: {
+      type: Number,
+      default: 0,
+    },
+    //number of paid sessions
+    sessionsPaid: {
+      type: Number,
+      default: 0,
+    },
+    //
     // Fields for parent appointment requests
     preferredDates: {
       type: [TimeSlotSchema],
