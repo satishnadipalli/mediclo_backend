@@ -41,6 +41,7 @@ exports.changePasswordValidation = [
 // @route   POST /api/auth/register
 // @access  Admin only
 exports.register = async (req, res, next) => {
+  console.log("Request Body:", req.body);
   try {
     // Check for validation errors
     const errors = validationResult(req);

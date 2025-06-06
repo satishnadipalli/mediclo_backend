@@ -22,7 +22,8 @@ const {
   submitPublicAppointment,
   validatePublicAppointment,
   checkPublicAppointmentStatus,
-  saveAppointmentAsDraft
+  saveAppointmentAsDraft,
+  getAppointmentsCalendarView,
 } = require("../controllers/appointmentController");
 
 // Public routes - no authentication needed
@@ -50,13 +51,20 @@ router
     createAppointment
   );
 
-  router.post(
-    "/save-later",
-    protect,
-    authorize("admin", "receptionist"),
-    saveAppointmentAsDraft
-  );
-  
+router.post(
+  "/save-later",
+  protect,
+  authorize("admin", "receptionist"),
+  saveAppointmentAsDraft
+);
+
+// Get today's calendar view (grouped by therapist and time)
+router.get(
+  "/calendar",
+  protect,
+  authorize("admin", "therapist", "receptionist"),
+  getAppointmentsCalendarView
+);
 
 // Get/update/delete specific appointment
 router

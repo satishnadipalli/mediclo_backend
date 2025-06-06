@@ -105,6 +105,7 @@ const AppointmentSchema = new mongoose.Schema(
       type: String,
       enum: [
         "scheduled",
+        "rescheduled",
         "completed",
         "cancelled",
         "no-show",

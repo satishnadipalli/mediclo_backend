@@ -66,6 +66,74 @@ exports.getAppointments = async (req, res) => {
   }
 };
 
+// @desc    Get today's appointments in calendar format
+// @route   GET /api/appointments/calendar
+// @access  Private (Admin, Receptionist, Therapist)
+exports.getAppointmentsCalendarView = async (req, res) => {
+  try {
+    //Get todays date and end timestamps
+    const now = new Date();
+    const dateStart = new Date(now.setHours(0, 0, 0, 0));
+    const dateEnd = new Date(now.setHours(23, 59, 59, 999));
+
+    //Fetch all appointments for today
+    const appointments = await Appointment.find({
+      date: {
+        $gte: dateStart,
+        $lte: dateEnd,
+      },
+    })
+      .populate({
+        path: "therapistId",
+        select: "firstName lastName",
+      })
+      .populate({
+        path: "patientId",
+        select: "firstName lastName",
+      })
+      .sort({ "therapistId.lastName": 1, startTime: 1 });
+
+    //Group appointments by therapist
+    const calendar = {};
+
+    appointments.forEach((appt) => {
+      const therapistId = appt.therapistId?._id?.toString();
+      if (!therapistId) return;
+
+      if (!calendar[therapistId]) {
+        calendar[therapistId] = {
+          therapist: {
+            _id: appt.therapistId._id,
+            fullName: `${appt.therapistId.firstName} ${appt.therapistId.lastName}`,
+          },
+          appointments: [],
+        };
+      }
+
+      calendar[therapistId].appointments.push({
+        _id: appt._id,
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+        status: appt.status,
+        type: appt.type,
+        patient: appt.patientId
+          ? {
+              _id: appt.patientId._id,
+              fullName: `${appt.patientId.firstName} ${appt.patientId.lastName}`,
+            }
+          : null,
+      });
+    });
+    res.status(200).json({
+      success: true,
+      data: calendar,
+    });
+  } catch (error) {
+    console.error("Calendar fetch error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
+  }
+};
+
 // @desc    Get single appointment
 // @route   GET /api/appointments/:id
 // @access  Private
@@ -121,27 +189,6 @@ exports.getAppointment = async (req, res) => {
   }
 };
 
-// Validation for create appointment
-exports.validateAppointment = [
-  body("fullName").notEmpty().withMessage("Patient name is required"),
-  body("email").optional().isEmail().withMessage("Valid email is required"),
-  body("phone").notEmpty().withMessage("Phone number is required"),
-  body("therapistId").optional(),
-  body("serviceId").notEmpty().withMessage("Service is required"),
-  body("date")
-    .notEmpty()
-    .withMessage("Date is required")
-    .isDate()
-    .withMessage("Invalid date format"),
-  body("startTime").notEmpty().withMessage("Start time is required"),
-  body("endTime").notEmpty().withMessage("End time is required"),
-  body("type").notEmpty().withMessage("Appointment type is required"),
-  body("notes").optional(),
-  body("address").optional(),
-  body("totalSessions").optional().isInt({ min: 0 }),
-  body("sessionsPaid").optional().isInt({ min: 0 }),
-];
-
 // @desc    Save appointment as draft
 // @route   POST /api/appointments/save-later
 // @access  Private (Admin/Receptionist)
@@ -189,10 +236,32 @@ exports.saveAppointmentAsDraft = async (req, res, next) => {
   }
 };
 
+// Validation for create appointment
+exports.validateAppointment = [
+  body("fullName").notEmpty().withMessage("Patient name is required"),
+  body("email").optional().isEmail().withMessage("Valid email is required"),
+  body("phone").notEmpty().withMessage("Phone number is required"),
+  body("therapistId").optional(),
+  body("serviceId").notEmpty().withMessage("Service is required"),
+  body("date")
+    .notEmpty()
+    .withMessage("Date is required")
+    .isDate()
+    .withMessage("Invalid date format"),
+  body("startTime").notEmpty().withMessage("Start time is required"),
+  body("endTime").notEmpty().withMessage("End time is required"),
+  body("type").notEmpty().withMessage("Appointment type is required"),
+  body("notes").optional(),
+  body("address").optional(),
+  body("totalSessions").optional().isInt({ min: 0 }),
+  body("sessionsPaid").optional().isInt({ min: 0 }),
+];
+
 // @desc    Create appointment by receptionist
 // @route   POST /api/appointments
 // @access  Private (Admin, Receptionist)
 exports.createAppointment = async (req, res) => {
+  console.log("Request body:", req.body);
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -231,6 +300,7 @@ exports.createAppointment = async (req, res) => {
       phone: req.body.phone,
       therapistId: req.body.therapistId,
       serviceId: req.body.serviceId,
+      patientId: req.body.patientId,
       date: req.body.date,
       startTime: req.body.startTime,
       endTime: req.body.endTime,
@@ -279,6 +349,20 @@ exports.validateUpdateAppointment = [
     .optional()
     .isIn(["pending", "paid", "refunded"])
     .withMessage("Invalid payment status"),
+  body("totalSessions").optional().isInt({ min: 0 }),
+  body("sessionsPaid").optional().isInt({ min: 0 }),
+  body("status")
+    .optional()
+    .isIn([
+      "scheduled",
+      "completed",
+      "cancelled",
+      "no-show",
+      "pending_assignment",
+      "pending_confirmation",
+      "pending",
+    ])
+    .withMessage("Invalid status"),
 ];
 
 // @desc    Update appointment
@@ -413,19 +497,42 @@ exports.rescheduleAppointment = async (req, res) => {
       }
     }
 
-    // Update appointment with new schedule details
+    // Validate status if provided
+    const validStatuses = [
+      "scheduled",
+      "rescheduled",
+      "completed",
+      "cancelled",
+      "no-show",
+      "pending_assignment",
+      "pending_confirmation",
+      "pending",
+    ];
+
+    if (req.body.status && !validStatuses.includes(req.body.status)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid status value",
+      });
+    }
+
+    // Build update fields
+    const updateFields = {
+      date: req.body.date,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      therapistId: req.body.therapistId || appointment.therapistId,
+      address: req.body.address || appointment.address,
+      status: req.body.status || appointment.status,
+      notes: req.body.reason
+        ? `${appointment.notes || ""}\nRescheduled: ${req.body.reason}`
+        : appointment.notes,
+    };
+
+    // Update the appointment
     const updatedAppointment = await Appointment.findByIdAndUpdate(
       req.params.id,
-      {
-        date: req.body.date,
-        startTime: req.body.startTime,
-        endTime: req.body.endTime,
-        therapistId: req.body.therapistId || appointment.therapistId,
-        address: req.body.address || appointment.address,
-        notes: req.body.reason
-          ? `${appointment.notes}\nRescheduled: ${req.body.reason}`
-          : appointment.notes,
-      },
+      updateFields,
       {
         new: true,
         runValidators: true,
@@ -434,9 +541,11 @@ exports.rescheduleAppointment = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: `Appointment successfully ${updateFields.status}`,
       data: updatedAppointment,
     });
   } catch (err) {
+    console.log("Reschedule Error:", error);
     if (err.name === "ValidationError") {
       const messages = Object.values(err.errors).map((val) => val.message);
       return res.status(400).json({
