@@ -66,7 +66,7 @@ exports.getAppointments = async (req, res) => {
   }
 };
 
-// @desc    Get today's appointments in calendar format
+// @desc    Get today's appointments in calendar format with fix time slots (45 minutes)
 // @route   GET /api/appointments/calendar
 // @access  Private (Admin, Receptionist, Therapist)
 exports.getAppointmentsCalendarView = async (req, res) => {
@@ -93,36 +93,63 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       })
       .sort({ "therapistId.lastName": 1, startTime: 1 });
 
+    // fixed 45-minute time slots
+    const timeSlots = [
+      "9:15 AM",
+      "10:00 AM",
+      "10:45 AM",
+      "11:30 AM",
+      "12:15 PM",
+      "1:00 PM",
+      "1:45 PM",
+      "2:30 PM",
+      "3:15 PM",
+      "4:00 PM",
+      "4:45 PM",
+      "5:30 PM",
+      "6:15 PM",
+      "6:45 PM",
+    ];
+
+    // Helper to format Date object to 12-hour time string (e.g., "10:45 AM")
+    const formatTime = (dateStr) => {
+      const [hour, minute] = dateStr.split(":");
+      const date = new Date();
+      date.setHours(parseInt(hour), parseInt(minute));
+      return date.toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    };
+
     //Group appointments by therapist
     const calendar = {};
 
     appointments.forEach((appt) => {
-      const therapistId = appt.therapistId?._id?.toString();
-      if (!therapistId) return;
+      const therapistName = `Dr. ${appt.therapistId.firstName} ${appt.therapistId.lastName}`;
+      const startFormatted = formatTime(appt.startTime);
 
-      if (!calendar[therapistId]) {
-        calendar[therapistId] = {
-          therapist: {
-            _id: appt.therapistId._id,
-            fullName: `${appt.therapistId.firstName} ${appt.therapistId.lastName}`,
-          },
-          appointments: [],
-        };
+      if (!calendar[therapistName]) {
+        calendar[therapistName] = {};
+        timeSlots.forEach((slot) => {
+          calendar[therapistName][slot] = null;
+        });
       }
 
-      calendar[therapistId].appointments.push({
-        _id: appt._id,
-        startTime: appt.startTime,
-        endTime: appt.endTime,
-        status: appt.status,
-        type: appt.type,
-        patient: appt.patientId
-          ? {
-              _id: appt.patientId._id,
-              fullName: `${appt.patientId.firstName} ${appt.patientId.lastName}`,
-            }
-          : null,
-      });
+      // Fill the appropriate slot
+      if (calendar[therapistName][startFormatted] === null) {
+        calendar[therapistName][startFormatted] = {
+          id: appt._id,
+          patientId: appt.patientId?._id || null,
+          doctorId: appt.therapistId._id,
+          patientName: appt.patientId
+            ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+            : "N/A",
+          type: appt.type,
+          status: appt.status,
+          duration: calculateDuration(appt.startTime, appt.endTime),
+        };
+      }
     });
     res.status(200).json({
       success: true,
@@ -133,6 +160,13 @@ exports.getAppointmentsCalendarView = async (req, res) => {
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };
+
+// Helper to calculate duration in minutes between two time strings
+function calculateDuration(startTime, endTime) {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
 
 // @desc    Get single appointment
 // @route   GET /api/appointments/:id
