@@ -7,24 +7,17 @@ const PatientSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Please add a parent/guardian"],
     },
-    firstName: {
+    fullName: {
       type: String,
-      required: [true, "Please add a first name"],
-      trim: true,
-    },
-    lastName: {
-      type: String,
-      required: [true, "Please add a last name"],
-      trim: true,
+      required: true,
     },
     dateOfBirth: {
       type: Date,
-      required: [true, "Please add a date of birth"],
     },
     gender: {
       type: String,
-      enum: ["male", "female", "other"],
-      required: [true, "Please specify gender"],
+      enum: ["male", "female", "other", "not_specified"],
+      default: "not_specified",
     },
     photo: {
       url: String,
@@ -112,7 +105,6 @@ const PatientSchema = new mongoose.Schema(
         therapistId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
-          required: true,
         },
         date: {
           type: Date,
@@ -120,7 +112,6 @@ const PatientSchema = new mongoose.Schema(
         },
         note: {
           type: String,
-          required: [true, "Please add note content"],
         },
       },
     ],
@@ -165,9 +156,9 @@ const PatientSchema = new mongoose.Schema(
 );
 
 // Create full name virtual
-PatientSchema.virtual("fullName").get(function () {
-  return `${this.firstName} ${this.lastName}`;
-});
+// PatientSchema.virtual("fullName").get(function () {
+//   return `${this.firstName} ${this.lastName}`;
+// });
 
 // Calculate age virtual
 PatientSchema.virtual("age").get(function () {

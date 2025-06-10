@@ -1,4 +1,5 @@
 const Appointment = require("../models/Appointment");
+const AppointmentForm = require("../models/AppointmentForm");
 const Patient = require("../models/Patient");
 const User = require("../models/User");
 const Service = require("../models/Service");
@@ -89,7 +90,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       })
       .populate({
         path: "patientId",
-        select: "firstName lastName",
+        select: "fullName",
       })
       .sort({ "therapistId.lastName": 1, startTime: 1 });
 
@@ -108,17 +109,21 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       "4:45 PM",
       "5:30 PM",
       "6:15 PM",
-      "6:45 PM",
+      "7:00 PM",
     ];
 
     // Helper to format Date object to 12-hour time string (e.g., "10:45 AM")
-    const formatTime = (dateStr) => {
-      const [hour, minute] = dateStr.split(":");
+    const formatTime = (timeStr) => {
+      const [time, modifier] = timeStr.split(" ");
+      let [hours, minutes] = time.split(":").map(Number);
+      if (modifier === "PM" && hours !== 12) hours += 12;
+      if (modifier === "AM" && hours === 12) hours = 0;
       const date = new Date();
-      date.setHours(parseInt(hour), parseInt(minute));
+      date.setHours(hours, minutes);
       return date.toLocaleTimeString([], {
         hour: "numeric",
         minute: "2-digit",
+        hour12: true,
       });
     };
 
@@ -142,9 +147,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
           id: appt._id,
           patientId: appt.patientId?._id || null,
           doctorId: appt.therapistId._id,
-          patientName: appt.patientId
-            ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
-            : "N/A",
+          patientName: appt.patientId?.fullName || "N/A",
           type: appt.type,
           status: appt.status,
           duration: calculateDuration(appt.startTime, appt.endTime),
@@ -156,16 +159,24 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       data: calendar,
     });
   } catch (error) {
-    console.error("Calendar fetch error:", err);
+    console.error("Calendar fetch error:", error);
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };
 
-// Helper to calculate duration in minutes between two time strings
+// Updated helper to support 12-hour format with AM/PM
 function calculateDuration(startTime, endTime) {
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
-  return eh * 60 + em - (sh * 60 + sm);
+  const parseTime = (str) => {
+    const [time, modifier] = str.split(" ");
+    let [hours, minutes] = time.split(":").map(Number);
+    if (modifier === "PM" && hours !== 12) hours += 12;
+    if (modifier === "AM" && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+  const start = parseTime(startTime);
+  const end = parseTime(endTime);
+  return end - start;
 }
 
 // @desc    Get single appointment
@@ -215,7 +226,7 @@ exports.getAppointment = async (req, res) => {
       success: true,
       data: appointment,
     });
-  } catch (err) {
+  } catch (error) {
     res.status(500).json({
       success: false,
       error: "Server Error",
@@ -270,7 +281,7 @@ exports.saveAppointmentAsDraft = async (req, res, next) => {
   }
 };
 
-// Validation for create appointment
+// Validation for create appointment(for receptionist)
 exports.validateAppointment = [
   body("fullName").notEmpty().withMessage("Patient name is required"),
   body("email").optional().isEmail().withMessage("Valid email is required"),
@@ -578,7 +589,7 @@ exports.rescheduleAppointment = async (req, res) => {
       message: `Appointment successfully ${updateFields.status}`,
       data: updatedAppointment,
     });
-  } catch (err) {
+  } catch (error) {
     console.log("Reschedule Error:", error);
     if (err.name === "ValidationError") {
       const messages = Object.values(err.errors).map((val) => val.message);
@@ -1007,6 +1018,7 @@ exports.assignTherapistToAppointment = async (req, res) => {
 // @route   GET /api/appointments/public-requests
 // @access  Private (Admin, Receptionist)
 exports.getPublicAppointmentRequests = async (req, res) => {
+  console.log("Inside controller: getPublicAppointmentRequests"); //debug
   try {
     const requests = await Appointment.find({
       isPublicSubmission: true,
@@ -1018,7 +1030,8 @@ exports.getPublicAppointmentRequests = async (req, res) => {
       count: requests.length,
       data: requests,
     });
-  } catch (err) {
+  } catch (error) {
+    console.error("Error fetching public requests:", error); //debug
     res.status(500).json({
       success: false,
       error: "Server Error",
@@ -1027,11 +1040,11 @@ exports.getPublicAppointmentRequests = async (req, res) => {
 };
 
 // @desc    Convert public appointment request to formal appointment
-// @route   PUT /api/appointments/:id/convert-public-request
+// @route   POST /api/appointments/:id/convert-public-request
 // @access  Private (Admin, Receptionist)
 exports.convertPublicAppointmentRequest = async (req, res) => {
   try {
-    const appointment = await Appointment.findById(req.params.id);
+    const appointment = await AppointmentForm.findById(req.params.id);
 
     if (!appointment) {
       return res.status(404).json({
@@ -1053,60 +1066,91 @@ exports.convertPublicAppointmentRequest = async (req, res) => {
       startTime,
       endTime,
       appointmentType,
-      paymentAmount,
-      patientId,
-      patientDetails, // Optional - if creating a new patient record
-      serviceId, // Added service reference
+      status,
+      // paymentMethod,
+      // patientId,
+      //patientDetails, // Optional - if creating a new patient record
+      // Added service reference
     } = req.body;
 
-    // If patientId is not provided but patientDetails is, create a new patient
-    let finalPatientId = patientId;
-
-    if (!patientId && patientDetails) {
-      // This would require importing Patient and User models and implementing the logic
-      // For now, we'll just indicate it's required
+    // Ensure required fields are present
+    if (!therapistId || !date || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
-        error:
-          "PatientId is required. Creating patients from public appointments is not yet implemented.",
+        error: "Therapist, date, startTime, and endTime are required",
       });
     }
 
-    // Check if service exists
-    if (serviceId) {
-      const service = await Service.findById(serviceId);
-      if (!service) {
-        return res.status(404).json({
-          success: false,
-          error: "Service not found",
-        });
-      }
+    // Validate therapist
+    const therapist = await User.findById(therapistId);
+    if (!therapist || therapist.role !== "therapist") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid therapist selected",
+      });
     }
 
-    // Update the appointment with formal details
-    appointment.therapistId = therapistId;
-    appointment.date = new Date(date);
-    appointment.startTime = startTime;
-    appointment.endTime = endTime;
-    appointment.status = "scheduled";
-    appointment.type = appointmentType || "initial assessment";
-    appointment.serviceId = serviceId;
-    appointment.payment = {
-      amount: paymentAmount || 0,
-      status: "pending",
-      method: "not_specified",
-    };
-    appointment.patientId = finalPatientId;
-    appointment.assignedBy = req.user._id;
-    appointment.assignedAt = new Date();
+    // Convert serviceType string to actual serviceId
+    const service = await Service.findOne({
+      name: { $regex: new RegExp(`^${req.body.serviceType}$`, "i") },
+    });
 
+    if (!service) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Service type not found" });
+    }
+
+    //Create a basic patient entry
+    const newPatient = new Patient({
+      parentId: req.user._id, //Assuming recpeptionist as gurardian for now
+      fullName: appointment.childName,
+      dateOfBirth: "",
+      emergencyContact: {
+        name: appointment.motherName || "Unknown",
+        relation: "Mother",
+        phone: appointment.contactNumber,
+      },
+      parentInfo: {
+        name: appointment.fatherName,
+        phone: appointment.contactNumber,
+        email: appointment.email,
+        relationship: "Father",
+      },
+    });
+    await newPatient.save();
+
+    // Create appointment
+    const newAppointment = await Appointment.create({
+      patientName: appointment.childName,
+      fatherName: appointment.fatherName,
+      email: appointment.email,
+      phone: appointment.contactNumber,
+      serviceId: service._id,
+      patientId: newPatient._id,
+      type: appointmentType || form.serviceType,
+      date: new Date(date),
+      startTime,
+      endTime,
+      status: status || "scheduled",
+      therapistId,
+      payment: {
+        method: appointment.paymentMethod || "not_specified",
+        status: "pending",
+        amount: 0,
+      },
+      assignedBy: req.user._id,
+      assignedAt: new Date(),
+      notes: appointment.notes,
+    });
+
+    // Update the original form
     await appointment.save();
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      data: appointment,
-      message:
-        "Public appointment request has been converted to a formal appointment",
+      message: `Appointment scheduled successfully`,
+      data: newAppointment,
     });
   } catch (err) {
     console.error(err);
@@ -1119,20 +1163,28 @@ exports.convertPublicAppointmentRequest = async (req, res) => {
 
 // Validation for public appointment submission
 exports.validatePublicAppointment = [
-  body("fullName").notEmpty().withMessage("Your name is required"),
+  body("motherName").notEmpty().withMessage("Mother's name is required"),
+  body("fatherName").notEmpty().withMessage("Father's name is required"),
+  body("childName").notEmpty().withMessage("Child's name is required"),
+  body("childAge")
+    .notEmpty()
+    .withMessage("Child's age is required")
+    .isInt({ min: 1, max: 30 })
+    .withMessage("Child's age must be a number between 1 and 30"),
   body("email")
     .notEmpty()
     .withMessage("Email is required")
     .isEmail()
     .withMessage("Valid email is required"),
-  body("phone").notEmpty().withMessage("Phone number is required"),
-  body("dateTime")
-    .notEmpty()
-    .withMessage("Preferred date and time is required"),
-  body("reason").notEmpty().withMessage("Reason for appointment is required"),
-  body("specialist").optional(),
-  body("serviceType").optional(),
-  body("consultationMode").optional(),
+  body("contactNumber").notEmpty().withMessage("Contact number is required"),
+  body("serviceType").notEmpty().withMessage("Service type is required"),
+  body("preferredDate").notEmpty().withMessage("Preferred date is required"),
+  body("preferredTime").notEmpty().withMessage("Preferred time is required"),
+  body("notes").optional().isString().withMessage("Notes must be a string"),
+  body("status")
+    .optional()
+    .isIn(["pending", "cancelled", "converted", "scheduled"])
+    .withMessage("Invalid status value"),
 ];
 
 // @desc    Submit public appointment request
@@ -1146,57 +1198,30 @@ exports.submitPublicAppointment = async (req, res) => {
       errors: errors.array(),
     });
   }
-
   try {
-    const {
-      fullName,
-      email,
-      phone,
-      specialist,
-      dateTime,
-      reason,
-      serviceType,
-      consultationMode,
-    } = req.body;
-
-    // Create the appointment directly without requiring user/patient accounts
-    const appointment = await Appointment.create({
-      // Public form fields
-      fullName,
-      email,
-      phone,
-      requestedSpecialist: specialist || "Any available specialist",
-      requestedDateTime: new Date(dateTime),
-      consultationMode: consultationMode || "in-person",
-      requestSource: "website",
-      isPublicSubmission: true,
-
-      // Record service type if provided
-      notes: serviceType
-        ? `Service type: ${serviceType}. Reason: ${reason}`
-        : reason,
-
-      // Set appropriate status
-      status: "pending",
-
-      // Use the reason as both type and notes
-      type: "other",
-    });
-
-    // Send successful response
+    const form = await AppointmentForm.create(req.body);
     res.status(201).json({
       success: true,
-      message:
-        "Thank you! Your appointment request has been received. We'll contact you soon.",
-      reference: appointment._id,
+      message: "Appointment request submitted successfully",
+      data: form,
     });
   } catch (err) {
-    console.error("Error submitting appointment form:", err);
-    res.status(500).json({
-      success: false,
-      error:
-        "We couldn't process your request. Please try again or contact us directly.",
+    console.error("Submit Error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
+  }
+};
+
+// @desc Get all pending forms submitted by public
+// @route GET /api/appointment-forms/pending
+// @access Private (Receptionist/Admin)
+exports.getPendingForms = async (req, res) => {
+  try {
+    const forms = await AppointmentForm.find({ status: "pending" }).sort({
+      createdAt: -1,
     });
+    res.status(200).json({ success: true, count: forms.length, data: forms });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Server Error" });
   }
 };
 

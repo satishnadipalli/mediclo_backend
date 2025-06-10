@@ -18,7 +18,10 @@ const TimeSlotSchema = new mongoose.Schema(
 const AppointmentSchema = new mongoose.Schema(
   {
     // Fields for public form submissions
-    fullName: {
+    patientName: {
+      type: String,
+    },
+    fatherName: {
       type: String,
     },
     email: {

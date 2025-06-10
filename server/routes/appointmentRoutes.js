@@ -24,16 +24,28 @@ const {
   checkPublicAppointmentStatus,
   saveAppointmentAsDraft,
   getAppointmentsCalendarView,
+  getPendingForms,
 } = require("../controllers/appointmentController");
 
 // Public routes - no authentication needed
-router.post(
-  "/public",
-  validatePublicAppointment,
-  validateRequest,
-  submitPublicAppointment
-);
+router.post("/public", validatePublicAppointment, submitPublicAppointment);
 router.get("/public/status/:id", checkPublicAppointmentStatus);
+
+//Get all pending appointments submitted by public user(Admin, Receptionist)
+router.get(
+  "/pending",
+  protect,
+  authorize("admin", "receptionist"),
+  getPendingForms
+);
+
+//Convert pending appointment into formal appointment(Admin, Receptionist)
+router.post(
+  "/:id/convert",
+  protect,
+  authorize("admin", "receptionist"),
+  convertPublicAppointmentRequest
+);
 
 // Get all appointments and create appointments (Admin, Therapist, Receptionist)
 router
@@ -51,6 +63,7 @@ router
     createAppointment
   );
 
+//  Save appointment into draft
 router.post(
   "/save-later",
   protect,
