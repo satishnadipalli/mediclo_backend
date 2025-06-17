@@ -10,11 +10,14 @@ exports.registerValidation = [
   }),
   body("firstName", "First name is required").notEmpty(),
   body("lastName", "Last name is required").notEmpty(),
-  body("role", "Role must be admin, therapist, receptionist, or staff")
+  body(
+    "role",
+    "Role must be admin, therapist, receptionist, staff, parent or member"
+  )
     .optional()
-    .isIn(["admin", "therapist", "staff", "receptionist"])
+    .isIn(["admin", "therapist", "staff", "receptionist", "parent", "member"])
     .withMessage(
-      "Invalid role specified - role must be admin, therapist, staff, or receptionist"
+      "Invalid role specified - role must be admin, therapist, staff, receptionist, parent or member"
     ),
 ];
 
@@ -54,13 +57,29 @@ exports.register = async (req, res, next) => {
 
     const { email, password, firstName, lastName, role, phone } = req.body;
 
-    // Default role is receptionist unless specified otherwise
-    let userRole = "receptionist";
+    //Find existing user
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        error: "Email already in use",
+      });
+    }
+
+    // Determine role
+    let userRole = "parent"; // default for public signups
 
     // If role is specified and valid, use that role
     if (
       role &&
-      ["admin", "therapist", "staff", "receptionist"].includes(role)
+      [
+        "admin",
+        "therapist",
+        "staff",
+        "receptionist",
+        "parent",
+        "member",
+      ].includes(role)
     ) {
       userRole = role;
     }
@@ -87,6 +106,7 @@ exports.register = async (req, res, next) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        membership: user.membership,
       },
     });
   } catch (err) {
@@ -113,30 +133,30 @@ exports.login = async (req, res, next) => {
     // Check for user
     const user = await User.findOne({ email }).select("+password");
 
-    if (!user) {
+    if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({
         success: false,
         error: "Invalid credentials",
       });
     }
 
-    // Verify user has appropriate role
-    if (!["admin", "therapist", "receptionist", "staff"].includes(user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: "Unauthorized access. Only staff members can login.",
-      });
-    }
+    // // Verify user has appropriate role
+    // if (!["admin", "therapist", "receptionist", "staff"].includes(user.role)) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     error: "Unauthorized access. Only staff members can login.",
+    //   });
+    // }
 
-    // Check if password matches
-    const isMatch = await user.matchPassword(password);
+    // // Check if password matches
+    // const isMatch = await user.matchPassword(password);
 
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid credentials",
-      });
-    }
+    // if (!isMatch) {
+    //   return res.status(401).json({
+    //     success: false,
+    //     error: "Invalid credentials",
+    //   });
+    // }
 
     // Create token
     const token = generateToken(user._id);
@@ -150,6 +170,7 @@ exports.login = async (req, res, next) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        membership: user.membership,
       },
     });
   } catch (err) {

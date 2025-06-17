@@ -12,35 +12,29 @@ const {
   changePasswordValidation,
 } = require("../controllers/authController");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { validateRequest } = require("../middleware/validationMiddleware");
 
 const router = express.Router();
 
-// All auth routes restricted to admin, therapist, and receptionist roles
-router.post("/login", loginValidation, login);
-router.post(
-  "/logout",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  logout
-);
-router.get(
-  "/me",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  getMe
-);
+// ✅ Public routes (no auth required)
+router.post("/register", registerValidation, validateRequest, register);
+router.post("/login", loginValidation, validateRequest, login);
+
+// ✅ Authenticated routes (any logged-in user: parent, member, staff, admin)
+router.post("/logout", protect, logout);
+router.get("/me", protect, getMe);
 router.put(
   "/update-profile",
   protect,
-  authorize("admin", "receptionist", "therapist"),
   updateProfileValidation,
+  validateRequest,
   updateProfile
 );
 router.put(
   "/change-password",
   protect,
-  authorize("admin", "receptionist", "therapist"),
   changePasswordValidation,
+  validateRequest,
   changePassword
 );
 
@@ -50,6 +44,7 @@ router.post(
   protect,
   authorize("admin"),
   registerValidation,
+  validateRequest,
   register
 );
 

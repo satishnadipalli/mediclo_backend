@@ -20,8 +20,8 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "therapist", "staff", "receptionist"],
-      default: "receptionist",
+      enum: ["admin", "therapist", "staff", "receptionist", "parent", "member"],
+      default: "parent",
     },
     firstName: {
       type: String,
@@ -51,6 +51,20 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Membership / Subscription details
+    membership: {
+      type: String,
+      enum: ["none", "basic", "premium", "vip"],
+      default: "none",
+    },
+    subscriptionStart: {
+      type: Date,
+    },
+    subscriptionEnd: {
+      type: Date,
+    },
+    // 📌 E-commerce / order history (optional future field)
+    orders: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
   },
   {
     timestamps: true,
@@ -62,7 +76,7 @@ const UserSchema = new mongoose.Schema(
 // Encrypt password using bcrypt
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
-    next();
+    return next();
   }
 
   const salt = await bcrypt.genSalt(10);
@@ -89,14 +103,5 @@ UserSchema.pre("remove", async function (next) {
   );
   next();
 });
-
-// Check if role field exists and update it to include receptionist
-const roleField = UserSchema.path("role");
-if (roleField) {
-  // If using enum for role field, ensure receptionist is included
-  if (roleField.enumValues && !roleField.enumValues.includes("receptionist")) {
-    UserSchema.path("role").enum([...roleField.enumValues, "receptionist"]);
-  }
-}
 
 module.exports = mongoose.model("User", UserSchema);
