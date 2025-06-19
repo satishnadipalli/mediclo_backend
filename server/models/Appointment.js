@@ -1,139 +1,94 @@
 const mongoose = require("mongoose");
 
-const TimeSlotSchema = new mongoose.Schema(
-  {
-    date: {
-      type: Date,
-      required: [true, "Please add a date"],
-    },
-    timeSlot: {
-      type: String,
-      enum: ["morning", "afternoon", "evening"],
-      required: [true, "Please specify a time slot"],
-    },
-  },
-  { _id: false }
-);
+// const TimeSlotSchema = new mongoose.Schema(
+//   {
+//     date: {
+//       type: Date,
+//       required: [true, "Please add a date"],
+//     },
+//     timeSlot: {
+//       type: String,
+//       enum: ["morning", "afternoon", "evening"],
+//       required: [true, "Please specify a time slot"],
+//     },
+//   },
+//   { _id: false }
+// );
 
 const AppointmentSchema = new mongoose.Schema(
   {
-    // Fields for public form submissions
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    patientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Patient",
+    },
+    therapistId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
+    },
     patientName: {
       type: String,
+      required: true,
     },
     fatherName: {
       type: String,
     },
     email: {
       type: String,
+      required: true,
     },
     phone: {
       type: String,
-    },
-    requestedSpecialist: {
-      type: String,
-    },
-    requestedDateTime: {
-      type: Date,
+      required: true,
     },
     consultationMode: {
       type: String,
       enum: ["in-person", "video-call", "phone"],
-    },
-    requestSource: {
-      type: String,
-      default: "website",
-    },
-    isPublicSubmission: {
-      type: Boolean,
-      default: false,
-    },
-
-    // Link to specific service
-    serviceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Service",
-      required: function () {
-        return !this.isPublicSubmission;
-      },
-    },
-
-    // Original fields - making some optional to support public submissions
-    patientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Patient",
-      required: function () {
-        return !this.isPublicSubmission;
-      },
-    },
-    therapistId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      // Making therapistId optional for parent appointment requests and public submissions
-      required: function () {
-        return !this.isPublicSubmission && this.status !== "pending_assignment";
-      },
+      default: "in-person",
     },
     date: {
       type: Date,
-      required: function () {
-        // Only required for confirmed appointments that aren't public submissions
-        return (
-          !this.isPublicSubmission &&
-          (!this.preferredDates || this.preferredDates.length === 0)
-        );
-      },
+      required: true,
     },
-    startTime: {
+    startIme: {
       type: String,
-      required: function () {
-        // Only required for confirmed appointments that aren't public submissions
-        return (
-          !this.isPublicSubmission &&
-          (!this.preferredDates || this.preferredDates.length === 0)
-        );
-      },
+      required: true,
     },
     endTime: {
       type: String,
-      required: function () {
-        // Only required for confirmed appointments that aren't public submissions
-        return (
-          !this.isPublicSubmission &&
-          (!this.preferredDates || this.preferredDates.length === 0)
-        );
-      },
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["initial assessment", "follow-up", "therapy session", "other"],
+      default: "initial assessment",
     },
     status: {
       type: String,
       enum: [
         "scheduled",
         "rescheduled",
-        "completed",
         "cancelled",
         "no-show",
-        "pending_assignment", // Waiting for admin to assign therapist
-        "pending_confirmation", // Waiting for therapist to confirm
-        "pending", // New status for public submissions
+        "pending-assignment",
+        "pending_confirmation",
       ],
       default: "scheduled",
-    },
-    type: {
-      type: String,
-      enum: ["initial assessment", "follow-up", "therapy session", "other"],
-      required: function () {
-        return !this.isPublicSubmission;
-      },
     },
     notes: {
       type: String,
     },
+    //payment model
     payment: {
       amount: {
         type: Number,
-        required: function () {
-          return !this.isPublicSubmission;
-        },
         default: 0,
       },
       status: {
@@ -159,12 +114,8 @@ const AppointmentSchema = new mongoose.Schema(
     // Adding consent field for patient consent
     consent: {
       type: Boolean,
-      required: function () {
-        return !this.isPublicSubmission;
-      },
       default: false,
     },
-    //
     //total number of sessions prescribed by therapist
     totalSessions: {
       type: Number,
@@ -175,23 +126,10 @@ const AppointmentSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    //
-    // Fields for parent appointment requests
-    preferredDates: {
-      type: [TimeSlotSchema],
-      default: undefined,
-    },
-    therapistPreference: {
-      type: String,
-      enum: ["no_preference", "specific", "any_available"],
-      default: "no_preference",
-    },
-    requestedByParent: {
-      type: Boolean,
-      default: false,
-    },
-    parentRequestedAt: {
-      type: Date,
+    //number of completed sessions
+    sessionsCompleted: {
+      type: Number,
+      default: 0,
     },
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -215,6 +153,7 @@ const AppointmentSchema = new mongoose.Schema(
 // Add index for efficient queries
 AppointmentSchema.index({ patientId: 1, date: 1 });
 AppointmentSchema.index({ therapistId: 1, date: 1 });
+AppointmentSchema.index({ userId: 1, date: 1 });
 AppointmentSchema.index({ email: 1 }); // Add index for email searches for public submissions
 
 // Prevent overlapping appointments for the same therapist
@@ -232,6 +171,7 @@ AppointmentSchema.pre("save", async function (next) {
     this.isModified("date") ||
     this.isModified("startTime") ||
     this.isModified("endTime") ||
+    this.isModified("therapistId") ||
     this.isNew
   ) {
     const existingAppointment = await this.constructor.findOne({

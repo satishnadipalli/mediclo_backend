@@ -13,7 +13,7 @@ const AppointmentFormSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  contactNumber: {
+  phone: {
     type: Number,
     required: true,
   },
@@ -34,8 +34,9 @@ const AppointmentFormSchema = new mongoose.Schema({
       "Assessment",
       "Consultation",
       "Other",
+      "Not_selected",
     ],
-    default: "Not Selected",
+    default: "not_specified",
   },
   preferredDate: {
     type: Date,
@@ -55,12 +56,13 @@ const AppointmentFormSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "scheduled", "cancelled", "converted"],
+    enum: ["pending", "scheduled", "cancelled"],
     default: "pending",
   },
-  isPublicSubmission: {
-    type: Boolean,
-    default: true,
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
   },
   createdAt: {
     type: Date,
