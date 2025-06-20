@@ -1,20 +1,5 @@
 const mongoose = require("mongoose");
 
-// const TimeSlotSchema = new mongoose.Schema(
-//   {
-//     date: {
-//       type: Date,
-//       required: [true, "Please add a date"],
-//     },
-//     timeSlot: {
-//       type: String,
-//       enum: ["morning", "afternoon", "evening"],
-//       required: [true, "Please specify a time slot"],
-//     },
-//   },
-//   { _id: false }
-// );
-
 const AppointmentSchema = new mongoose.Schema(
   {
     userId: {
@@ -57,7 +42,7 @@ const AppointmentSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    startIme: {
+    startTime: {
       type: String,
       required: true,
     },
@@ -79,6 +64,8 @@ const AppointmentSchema = new mongoose.Schema(
         "no-show",
         "pending-assignment",
         "pending_confirmation",
+        "converted",
+        "completed",
       ],
       default: "scheduled",
     },

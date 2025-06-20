@@ -11,6 +11,7 @@ const {
   updateProfileValidation,
   changePasswordValidation,
 } = require("../controllers/authController");
+
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { validateRequest } = require("../middleware/validationMiddleware");
 
@@ -23,6 +24,7 @@ router.post("/login", loginValidation, validateRequest, login);
 // ✅ Authenticated routes (any logged-in user: parent, member, staff, admin)
 router.post("/logout", protect, logout);
 router.get("/me", protect, getMe);
+
 router.put(
   "/update-profile",
   protect,

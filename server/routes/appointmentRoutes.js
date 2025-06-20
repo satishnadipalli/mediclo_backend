@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { validateRequest } = require("../middleware/validationMiddleware");
 const {
+  // Core appointment functions
   getAppointments,
   getAppointment,
   createAppointment,
@@ -10,82 +11,93 @@ const {
   deleteAppointment,
   rescheduleAppointment,
   updateAppointmentStatus,
-  getTherapistAppointments,
-  getPatientAppointments,
+  getAppointmentsCalendarView,
+
+  // User requests
+  submitAppointmentRequest,
+  getPendingAppointmentRequests,
+  convertRequestToAppointment,
+
+  // Validation exports
   validateAppointment,
   validateUpdateAppointment,
-  // validateParentAppointmentRequest,
-  // createParentAppointmentRequest,
-  assignTherapistToAppointment,
-  getPublicAppointmentRequests,
-  convertPublicAppointmentRequest,
-  submitPublicAppointment,
-  validatePublicAppointment,
-  checkPublicAppointmentStatus,
-  saveAppointmentAsDraft,
-  getAppointmentsCalendarView,
-  getPendingForms,
+  validateAppointmentRequest,
+  validateFormalAppointment,
 } = require("../controllers/appointmentController");
 
-// Public routes - no authentication needed
-router.post("/public", validatePublicAppointment, submitPublicAppointment);
-router.get("/public/status/:id", checkPublicAppointmentStatus);
+// ======================
+// USER ROUTES
+// ======================
 
-//Get all pending appointments submitted by public user(Admin, Receptionist)
+// User submits appointment request (must be logged in as user/parent)
+router.post(
+  "/request",
+  protect,
+  authorize("user", "parent"),
+  validateAppointmentRequest,
+  validateRequest,
+  submitAppointmentRequest
+);
+
+// ======================
+// RECEPTIONIST / ADMIN ROUTES
+// ======================
+
+// Fetch pending appointment requests
 router.get(
-  "/pending",
+  "/requests/pending",
   protect,
   authorize("admin", "receptionist"),
-  getPendingForms
+  getPendingAppointmentRequests
 );
 
-//Convert pending appointment into formal appointment(Admin, Receptionist)
+// Convert appointment request to formal appointment
 router.post(
-  "/:id/convert",
+  "/convert/:formId",
   protect,
   authorize("admin", "receptionist"),
-  convertPublicAppointmentRequest
+  validateFormalAppointment,
+  validateRequest,
+  convertRequestToAppointment
 );
 
-// Get all appointments and create appointments (Admin, Therapist, Receptionist)
-router
-  .route("/")
-  .get(
-    protect,
-    authorize("admin", "therapist", "receptionist"),
-    getAppointments
-  )
-  .post(
-    protect,
-    authorize("admin", "receptionist"),
-    validateAppointment,
-    validateRequest,
-    createAppointment
-  );
+// ======================
+// APPOINTMENT CRUD
+// ======================
 
-//  Save appointment into draft
+// Get all appointments
+router.get(
+  "/",
+  protect,
+  authorize("admin", "receptionist", "therapist"),
+  getAppointments
+);
+
+// Create formal appointment (receptionist / admin)
 router.post(
-  "/save-later",
+  "/",
   protect,
   authorize("admin", "receptionist"),
-  saveAppointmentAsDraft
+  validateAppointment,
+  validateRequest,
+  createAppointment
 );
 
-// Get today's calendar view (grouped by therapist and time)
+// Get today's calendar view
 router.get(
   "/calendar",
   protect,
-  authorize("admin", "therapist", "receptionist"),
+  authorize("admin", "receptionist", "therapist"),
   getAppointmentsCalendarView
 );
 
-// Get/update/delete specific appointment
+// Get, update, delete single appointment
 router
   .route("/:id")
-  .get(protect, authorize("admin", "therapist", "receptionist"), getAppointment)
+  .get(protect, authorize("admin", "receptionist", "therapist"), getAppointment)
   .put(
     protect,
-    authorize("admin", "therapist", "receptionist"),
+    authorize("admin", "receptionist", "therapist"),
     validateUpdateAppointment,
     validateRequest,
     updateAppointment
@@ -96,7 +108,7 @@ router
 router.put(
   "/:id/reschedule",
   protect,
-  authorize("admin", "therapist", "receptionist"),
+  authorize("admin", "receptionist", "therapist"),
   rescheduleAppointment
 );
 
@@ -104,58 +116,8 @@ router.put(
 router.put(
   "/:id/status",
   protect,
-  authorize("admin", "therapist", "receptionist"),
+  authorize("admin", "receptionist", "therapist"),
   updateAppointmentStatus
-);
-
-// Get therapist's appointments
-router.get(
-  "/therapist/:therapistId",
-  protect,
-  authorize("admin", "therapist", "receptionist"),
-  getTherapistAppointments
-);
-
-// Get patient's appointments
-router.get(
-  "/patient/:patientId",
-  protect,
-  authorize("admin", "therapist", "receptionist"),
-  getPatientAppointments
-);
-
-// Parent appointment request (without requiring therapist selection)
-// router.post(
-//   "/request",
-//   protect,
-//   authorize("parent"),
-//   validateParentAppointmentRequest,
-//   validateRequest,
-//   createParentAppointmentRequest
-// );
-
-// Assign therapist to pending appointment request
-router.put(
-  "/:id/assign-therapist",
-  protect,
-  authorize("admin", "receptionist"),
-  assignTherapistToAppointment
-);
-
-// Get all public appointment requests
-router.get(
-  "/public-requests",
-  protect,
-  authorize("admin", "receptionist"),
-  getPublicAppointmentRequests
-);
-
-// Convert public appointment request to formal appointment
-router.put(
-  "/:id/convert-public-request",
-  protect,
-  authorize("admin", "receptionist"),
-  convertPublicAppointmentRequest
 );
 
 module.exports = router;

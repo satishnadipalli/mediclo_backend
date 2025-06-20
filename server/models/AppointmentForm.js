@@ -14,7 +14,7 @@ const AppointmentFormSchema = new mongoose.Schema({
     required: true,
   },
   phone: {
-    type: Number,
+    type: String,
     required: true,
   },
   email: {
@@ -56,8 +56,12 @@ const AppointmentFormSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "scheduled", "cancelled"],
+    enum: ["pending", "scheduled", "cancelled", "converted"],
     default: "pending",
+  },
+  isConverted: {
+    type: Boolean,
+    default: false,
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

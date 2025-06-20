@@ -2,7 +2,9 @@ const User = require("../models/User");
 const { generateToken } = require("../config/jwt");
 const { body, check, validationResult } = require("express-validator");
 
-// Validation rules
+// ==============================
+// Validation Schemas
+// ==============================
 exports.registerValidation = [
   body("email", "Please include a valid email").isEmail(),
   body("password", "Password must be at least 6 characters").isLength({
@@ -10,15 +12,10 @@ exports.registerValidation = [
   }),
   body("firstName", "First name is required").notEmpty(),
   body("lastName", "Last name is required").notEmpty(),
-  body(
-    "role",
-    "Role must be admin, therapist, receptionist, staff, parent or member"
-  )
+  body("role")
     .optional()
     .isIn(["admin", "therapist", "staff", "receptionist", "parent", "member"])
-    .withMessage(
-      "Invalid role specified - role must be admin, therapist, staff, receptionist, parent or member"
-    ),
+    .withMessage("Invalid role specified"),
 ];
 
 exports.loginValidation = [
@@ -27,10 +24,10 @@ exports.loginValidation = [
 ];
 
 exports.updateProfileValidation = [
-  check("email", "Please include a valid email").optional().isEmail(),
-  check("firstName", "First name is required").optional().notEmpty(),
-  check("lastName", "Last name is required").optional().notEmpty(),
-  check("phone", "Phone number is not valid").optional().isMobilePhone(),
+  check("email").optional().isEmail(),
+  check("firstName").optional().notEmpty(),
+  check("lastName").optional().notEmpty(),
+  check("phone").optional().isMobilePhone(),
 ];
 
 exports.changePasswordValidation = [
@@ -40,11 +37,14 @@ exports.changePasswordValidation = [
   }),
 ];
 
+// ==============================
+// Auth Controllers
+// ==============================
+
 // @desc    Register user
 // @route   POST /api/auth/register
-// @access  Admin only
+// @access  Admin only (for staff), or public for parent
 exports.register = async (req, res, next) => {
-  console.log("Request Body:", req.body);
   try {
     // Check for validation errors
     const errors = validationResult(req);
@@ -66,31 +66,13 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Determine role
-    let userRole = "parent"; // default for public signups
-
-    // If role is specified and valid, use that role
-    if (
-      role &&
-      [
-        "admin",
-        "therapist",
-        "staff",
-        "receptionist",
-        "parent",
-        "member",
-      ].includes(role)
-    ) {
-      userRole = role;
-    }
-
     // Create user
     const user = await User.create({
       email,
       password,
       firstName,
       lastName,
-      role: userRole,
+      role: role || "parent",
       phone,
     });
 
@@ -139,24 +121,6 @@ exports.login = async (req, res, next) => {
         error: "Invalid credentials",
       });
     }
-
-    // // Verify user has appropriate role
-    // if (!["admin", "therapist", "receptionist", "staff"].includes(user.role)) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     error: "Unauthorized access. Only staff members can login.",
-    //   });
-    // }
-
-    // // Check if password matches
-    // const isMatch = await user.matchPassword(password);
-
-    // if (!isMatch) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     error: "Invalid credentials",
-    //   });
-    // }
 
     // Create token
     const token = generateToken(user._id);

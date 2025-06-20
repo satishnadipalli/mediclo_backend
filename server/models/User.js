@@ -63,7 +63,7 @@ const UserSchema = new mongoose.Schema(
     subscriptionEnd: {
       type: Date,
     },
-    // 📌 E-commerce / order history (optional future field)
+    // E-commerce / order history (optional future field)
     orders: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
   },
   {
@@ -81,6 +81,7 @@ UserSchema.pre("save", async function (next) {
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 // Match user entered password to hashed password in database
