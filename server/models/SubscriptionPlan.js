@@ -6,9 +6,11 @@ const SubscriptionPlanSchema = new mongoose.Schema(
       type: String,
       unique: true,
       trim: true,
+      required: [true, "Please provide a valid plan name"],
     },
     description: {
       type: String,
+      required: [true, "Please provide a plan description"],
     },
     status: {
       type: String,
@@ -17,14 +19,16 @@ const SubscriptionPlanSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
+      required: [true, "Please provide a price"],
     },
     billingCycle: {
       type: String,
       enum: ["monthly", "quarterly", "biannual", "annual"],
+      required: [true, "Please provide a billing cycle"],
     },
     trialPeriod: {
-      type: Number, // Days
-      default: 0,
+      type: Number,
+      default: 0, //In days
     },
     features: {
       accessToWebinars: {
@@ -49,8 +53,8 @@ const SubscriptionPlanSchema = new mongoose.Schema(
       },
     },
     gracePeriod: {
-      type: Number, // Days
-      default: 0,
+      type: Number,
+      default: 0, // In days
     },
     order: {
       type: Number,

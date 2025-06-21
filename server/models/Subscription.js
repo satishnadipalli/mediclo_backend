@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const SubscriptionSchema = new mongoose.Schema(
   {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     name: {
       type: String,
       required: [true, "Please add a name"],
@@ -77,6 +81,8 @@ const SubscriptionSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
@@ -89,9 +95,8 @@ SubscriptionSchema.virtual("isExpired").get(function () {
 SubscriptionSchema.virtual("daysRemaining").get(function () {
   const today = new Date();
   const end = new Date(this.endDate);
-  const diffTime = Math.abs(end - today);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  const diffTime = end - today;
+  return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 });
 
 module.exports = mongoose.model("Subscription", SubscriptionSchema);

@@ -1,45 +1,32 @@
 const express = require("express");
 const {
-  getSubscriptions,
-  getSubscription,
-  createSubscription,
-  updateSubscription,
-  deleteSubscription,
-  renewSubscription,
   getSubscriptionPlans,
   getSubscriptionPlan,
+  createSubscription,
+  renewSubscription,
+  cancelSubscription,
   createSubscriptionPlan,
   updateSubscriptionPlan,
   deleteSubscriptionPlan,
-  validateSubscription,
-  validateSubscriptionPlan,
-  validatePublicSubscription,
-  createPublicSubscription,
-  checkSubscriptionByEmail,
 } = require("../controllers/subscriptionController");
 
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Public routes
+/* PUBLIC ROUTES */
 router.get("/plans", getSubscriptionPlans);
 router.get("/plans/:id", getSubscriptionPlan);
-router.post("/public", validatePublicSubscription, createPublicSubscription);
-router.get("/check/:email", checkSubscriptionByEmail);
+
+// USER ROUTES (need login)
+router.use(protect);
+router.post("/", createSubscription);
+router.post("/:id/renew", renewSubscription);
+router.post("/:id/cancel", cancelSubscription);
 
 // Protected admin-only routes
-router.use(protect, authorize("admin"));
-
-// Admin only routes
-router.get("/", getSubscriptions);
-router.get("/:id", getSubscription);
-router.post("/", validateSubscription, createSubscription);
-router.put("/:id", validateSubscription, updateSubscription);
-router.delete("/:id", deleteSubscription);
-router.put("/:id/renew", renewSubscription);
-router.post("/plans", validateSubscriptionPlan, createSubscriptionPlan);
-router.put("/plans/:id", validateSubscriptionPlan, updateSubscriptionPlan);
-router.delete("/plans/:id", deleteSubscriptionPlan);
+router.post("/plans", authorize("admin"), createSubscriptionPlan);
+router.put("/plans/:id", authorize("admin"), updateSubscriptionPlan);
+router.delete("/plans/:id", authorize("admin"), deleteSubscriptionPlan);
 
 module.exports = router;

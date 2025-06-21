@@ -54,8 +54,8 @@ const UserSchema = new mongoose.Schema(
     // Membership / Subscription details
     membership: {
       type: String,
-      enum: ["none", "basic", "premium", "vip"],
-      default: "none",
+      enum: ["basic plan", "advanced plan", "premium plan"],
+      default: null,
     },
     subscriptionStart: {
       type: Date,
