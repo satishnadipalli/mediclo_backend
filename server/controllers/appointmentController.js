@@ -543,10 +543,25 @@ exports.getAppointments = async (req, res) => {
 // @access  Private (Admin, Receptionist, Therapist)
 exports.getAppointmentsCalendarView = async (req, res) => {
   try {
+    // Check for query date
+    let targetDate;
+    if (req.query.date) {
+      // Expecting YYYY-MM-DD format
+      targetDate = new Date(req.query.date);
+      if (isNaN(targetDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid date format. Use YYYY-MM-DD.",
+        });
+      }
+    } else {
+      targetDate = new Date(); // today
+    }
+    //
     //Get todays date and end timestamps
-    const now = new Date();
-    const dateStart = new Date(now.setHours(0, 0, 0, 0));
-    const dateEnd = new Date(now.setHours(23, 59, 59, 999));
+    // const now = new Date();
+    const dateStart = new Date(targetDate.setHours(0, 0, 0, 0));
+    const dateEnd = new Date(targetDate.setHours(23, 59, 59, 999));
 
     // Base query
     const query = {
@@ -590,21 +605,6 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       "06:15 PM",
       "07:00 PM",
     ];
-
-    // Helper to format Date object to 12-hour time string (e.g., "10:45 AM")
-    // const formatTime = (timeStr) => {
-    //   const [time, modifier] = timeStr.split(" ");
-    //   let [hours, minutes] = time.split(":").map(Number);
-    //   if (modifier === "PM" && hours !== 12) hours += 12;
-    //   if (modifier === "AM" && hours === 12) hours = 0;
-    //   const date = new Date();
-    //   date.setHours(hours, minutes);
-    //   return date.toLocaleTimeString([], {
-    //     hour: "numeric",
-    //     minute: "2-digit",
-    //     hour12: true,
-    //   });
-    // };
 
     //Group appointments by therapist
     const calendar = {};
