@@ -123,14 +123,14 @@ ToyBorrowingSchema.pre("save", async function (next) {
 });
 
 // Automatically set status to "Overdue" if due date has passed
-ToyBorrowingSchema.pre("find", function () {
-  this.where({
-    returnDate: { $exists: false }, // Not yet returned
-    dueDate: { $lt: new Date() }, // Due date has passed
-    status: "Borrowed",
-  }).setOptions({ overwriteDiscriminatorKey: true });
+// ToyBorrowingSchema.pre("find", function () {
+//   this.where({
+//     returnDate: { $exists: false }, // Not yet returned
+//     dueDate: { $lt: new Date() }, // Due date has passed
+//     status: "Borrowed",
+//   }).setOptions({ overwriteDiscriminatorKey: true });
 
-  this.updateMany({}, { status: "Overdue" }).exec();
-});
+//   this.updateMany({}, { status: "Overdue" }).exec();
+// });
 
 module.exports = mongoose.model("ToyBorrowing", ToyBorrowingSchema);

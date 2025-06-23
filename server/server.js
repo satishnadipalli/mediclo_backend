@@ -12,6 +12,7 @@ const hpp = require("hpp");
 const fileUpload = require("express-fileupload");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
+const startOverdueUpdateJob = require("./utils/cronJob");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -48,6 +49,8 @@ dotenv.config({ path: "./config/config.env" });
 
 // Connect to database
 connectDB();
+//Start the cron job
+startOverdueUpdateJob();
 
 const app = express();
 

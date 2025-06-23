@@ -27,6 +27,7 @@ const {
   borrowToyValidation,
   returnToyValidation,
   getBorrowerHistory,
+  manualOverdueUpdate,
 } = require("../controllers/toyBorrowingController");
 
 // Setup routes
@@ -103,6 +104,14 @@ router.get(
   protect,
   authorize("admin", "staff"),
   getBorrowerHistory
+);
+
+// New manual trigger route
+router.put(
+  "/borrowings/overdue/update",
+  protect,
+  authorize("admin", "staff"),
+  manualOverdueUpdate
 );
 
 module.exports = router;

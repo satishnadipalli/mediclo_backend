@@ -244,6 +244,7 @@ exports.deleteToy = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: "Toy deleted successfully",
       data: {},
     });
   } catch (err) {
@@ -267,7 +268,7 @@ exports.addToyUnit = async (req, res) => {
       });
     }
 
-    const toy = await Toy.findById(req.params.id);
+    const toy = await Toy.findById(req.params.toyId);
 
     if (!toy) {
       return res.status(404).json({
@@ -310,6 +311,7 @@ exports.addToyUnit = async (req, res) => {
       data: toyUnit,
     });
   } catch (err) {
+    console.error("Add Toy Unit error:", err);
     res.status(500).json({
       success: false,
       error: "Server Error",
@@ -420,7 +422,7 @@ exports.deleteToyUnit = async (req, res) => {
 };
 
 // @desc    Get toy borrowing history
-// @route   GET /api/toys/:id/borrowings
+// @route   GET /api/toys/:id/borrowing-history
 // @access  Private
 exports.getToyBorrowingHistory = async (req, res) => {
   try {
@@ -432,13 +434,23 @@ exports.getToyBorrowingHistory = async (req, res) => {
         error: "Toy not found",
       });
     }
+    console.log("Toy _id for history query:", toy._id); //debug
 
     // Get borrowing history for this toy
+    // Get borrowing history
     const borrowings = await ToyBorrowing.find({ toyId: toy._id })
       .sort({ issueDate: -1 })
       .populate("toyUnitId", "unitNumber")
-      .populate("issuedBy", "firstName lastName")
-      .populate("returnProcessedBy", "firstName lastName");
+      .populate({
+        path: "issuedBy",
+        select: "firstName lastName",
+        options: { strictPopulate: false },
+      })
+      .populate({
+        path: "returnProcessedBy",
+        select: "firstName lastName",
+        options: { strictPopulate: false },
+      });
 
     res.status(200).json({
       success: true,

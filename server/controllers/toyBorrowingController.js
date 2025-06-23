@@ -226,7 +226,7 @@ exports.returnToy = async (req, res) => {
         errors: errors.array(),
       });
     }
-
+    console.log("req params id: ", req.params.id); //debug
     // Get the borrowing record
     const borrowing = await ToyBorrowing.findById(req.params.id);
     if (!borrowing) {
@@ -245,7 +245,9 @@ exports.returnToy = async (req, res) => {
     }
 
     // Update borrowing record
-    borrowing.returnDate = new Date();
+    borrowing.returnDate = req.body.returnDate
+      ? new Date(req.body.returnDate)
+      : new Date();
     borrowing.status = "Returned";
     borrowing.conditionOnReturn = req.body.conditionOnReturn;
     borrowing.notes = req.body.notes
@@ -417,6 +419,33 @@ exports.getOverdueBorrowings = async (req, res) => {
       data: overdueBorrowings,
     });
   } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
+  }
+};
+
+// @desc    Manually trigger overdue update
+// @route   PUT /api/toys/borrowings/overdue/update
+// @access  Private (Admin or Staff)
+exports.manualOverdueUpdate = async (req, res) => {
+  try {
+    const result = await ToyBorrowing.updateMany(
+      {
+        returnDate: { $exists: false },
+        dueDate: { $lt: new Date() },
+        status: "Borrowed",
+      },
+      { status: "Overdue" }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Updated ${result.modifiedCount} borrowings to Overdue`,
+    });
+  } catch (err) {
+    console.error("Manual overdue update error:", err);
     res.status(500).json({
       success: false,
       error: "Server Error",

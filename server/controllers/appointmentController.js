@@ -575,43 +575,43 @@ exports.getAppointmentsCalendarView = async (req, res) => {
 
     // fixed 45-minute time slots
     const timeSlots = [
-      "9:15 AM",
+      "09:15 AM",
       "10:00 AM",
       "10:45 AM",
       "11:30 AM",
       "12:15 PM",
-      "1:00 PM",
-      "1:45 PM",
-      "2:30 PM",
-      "3:15 PM",
-      "4:00 PM",
-      "4:45 PM",
-      "5:30 PM",
-      "6:15 PM",
-      "7:00 PM",
+      "01:00 PM",
+      "01:45 PM",
+      "02:30 PM",
+      "03:15 PM",
+      "04:00 PM",
+      "04:45 PM",
+      "05:30 PM",
+      "06:15 PM",
+      "07:00 PM",
     ];
 
     // Helper to format Date object to 12-hour time string (e.g., "10:45 AM")
-    const formatTime = (timeStr) => {
-      const [time, modifier] = timeStr.split(" ");
-      let [hours, minutes] = time.split(":").map(Number);
-      if (modifier === "PM" && hours !== 12) hours += 12;
-      if (modifier === "AM" && hours === 12) hours = 0;
-      const date = new Date();
-      date.setHours(hours, minutes);
-      return date.toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    };
+    // const formatTime = (timeStr) => {
+    //   const [time, modifier] = timeStr.split(" ");
+    //   let [hours, minutes] = time.split(":").map(Number);
+    //   if (modifier === "PM" && hours !== 12) hours += 12;
+    //   if (modifier === "AM" && hours === 12) hours = 0;
+    //   const date = new Date();
+    //   date.setHours(hours, minutes);
+    //   return date.toLocaleTimeString([], {
+    //     hour: "numeric",
+    //     minute: "2-digit",
+    //     hour12: true,
+    //   });
+    // };
 
     //Group appointments by therapist
     const calendar = {};
 
     appointments.forEach((appt) => {
       const therapistName = `Dr. ${appt.therapistId.firstName} ${appt.therapistId.lastName}`;
-      const startFormatted = formatTime(appt.startTime);
+      const startFormatted = appt.startTime;
 
       if (!calendar[therapistName]) {
         calendar[therapistName] = {};
