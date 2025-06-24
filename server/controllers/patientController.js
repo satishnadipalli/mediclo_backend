@@ -2,6 +2,7 @@ const Patient = require("../models/Patient");
 const { body, check, validationResult } = require("express-validator");
 const Appointment = require("../models/Appointment");
 const ErrorResponse = require("../utils/errorResponse");
+const User = require("../models/User");
 
 // Validation rules
 exports.createPatientValidation = [
@@ -36,23 +37,15 @@ exports.createPatientValidation = [
 ];
 
 exports.updatePatientValidation = [
-  check("firstName", "Child's name is required").optional().notEmpty(),
-  check("lastName", "Child's last name is required").optional().notEmpty(),
-  check("dateOfBirth", "Date of birth must be a valid date")
-    .optional()
-    .isISO8601(),
-  check("gender", "Gender must be male, female, or other")
-    .optional()
-    .isIn(["male", "female", "other"]),
-  check("parentInfo.name", "Parent/Guardian name is required")
-    .optional()
-    .notEmpty(),
-  check("parentInfo.phone", "Parent contact number is required")
-    .optional()
-    .notEmpty(),
-  check("parentInfo.email", "Invalid email format").optional().isEmail(),
-  check("parentInfo.address", "Address is required").optional().notEmpty(),
-  check("parentInfo.relationship", "Relationship to child is required")
+  check("firstName").optional().notEmpty(),
+  check("lastName").optional().notEmpty(),
+  check("dateOfBirth").optional().isISO8601(),
+  check("gender").optional().isIn(["male", "female", "other"]),
+  check("parentInfo.name").optional().notEmpty(),
+  check("parentInfo.phone").optional().notEmpty(),
+  check("parentInfo.email").optional().isEmail(),
+  check("parentInfo.address").optional().notEmpty(),
+  check("parentInfo.relationship")
     .optional()
     .isIn(["Father", "Mother", "Guardian", "Other"]),
 ];
@@ -133,18 +126,14 @@ exports.getPatient = async (req, res, next) => {
 // @desc    Create new patient
 // @route   POST /api/patients
 // @access  Private (Admin, Therapist, Receptionist only)
+
 exports.createPatient = async (req, res, next) => {
   try {
-    // Check validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      });
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    // Only allow admin, therapist, or receptionist to create patients
     if (!["admin", "therapist", "receptionist"].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -152,36 +141,84 @@ exports.createPatient = async (req, res, next) => {
       });
     }
 
-    // Calculate age based on date of birth
-    const dateOfBirth = new Date(req.body.dateOfBirth);
-    const today = new Date();
-    let age = today.getFullYear() - dateOfBirth.getFullYear();
-    const m = today.getMonth() - dateOfBirth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dateOfBirth.getDate())) {
-      age--;
+    const { parentInfo, ...patientData } = req.body;
+    let parentUser = await User.findOne({ email: parentInfo.email });
+    if (!parentUser) {
+      parentUser = await User.create({
+        email: parentInfo.email,
+        password: "temporary",
+        role: "parent",
+        firstName: parentInfo.name.split(" ")[0],
+        lastName: parentInfo.name.split(" ").slice(1).join(" ") || "Parent",
+        phone: parentInfo.phone,
+        address: { street: parentInfo.address },
+      });
     }
 
     const patient = await Patient.create({
-      ...req.body,
-      // Set the parent info fields from the input
-      parentInfo: {
-        name: req.body.parentInfo?.name,
-        phone: req.body.parentInfo?.phone,
-        email: req.body.parentInfo?.email,
-        relationship: req.body.parentInfo?.relationship || "Guardian",
-        address: req.body.parentInfo?.address,
-        photo: req.body.parentInfo?.photo,
-      },
+      ...patientData,
+      parentId: parentUser._id,
+      parentInfo,
     });
 
     res.status(201).json({
       success: true,
-      data: patient,
+      message: "Patient and parent user created successfully",
+      data: { patient, parentUser },
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
+// exports.createPatient = async (req, res, next) => {
+//   try {
+//     // Check validation
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//       return res.status(400).json({
+//         success: false,
+//         errors: errors.array(),
+//       });
+//     }
+
+//     // Only allow admin, therapist, or receptionist to create patients
+//     if (!["admin", "therapist", "receptionist"].includes(req.user.role)) {
+//       return res.status(403).json({
+//         success: false,
+//         error: "Not authorized to register patients",
+//       });
+//     }
+
+//     // Calculate age based on date of birth
+//     const dateOfBirth = new Date(req.body.dateOfBirth);
+//     const today = new Date();
+//     let age = today.getFullYear() - dateOfBirth.getFullYear();
+//     const m = today.getMonth() - dateOfBirth.getMonth();
+//     if (m < 0 || (m === 0 && today.getDate() < dateOfBirth.getDate())) {
+//       age--;
+//     }
+
+//     const patient = await Patient.create({
+//       ...req.body,
+//       // Set the parent info fields from the input
+//       parentInfo: {
+//         name: req.body.parentInfo?.name,
+//         phone: req.body.parentInfo?.phone,
+//         email: req.body.parentInfo?.email,
+//         relationship: req.body.parentInfo?.relationship || "Guardian",
+//         address: req.body.parentInfo?.address,
+//         photo: req.body.parentInfo?.photo,
+//       },
+//     });
+
+//     res.status(201).json({
+//       success: true,
+//       data: patient,
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
 
 // @desc    Update patient
 // @route   PUT /api/patients/:id

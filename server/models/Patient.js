@@ -7,7 +7,11 @@ const PatientSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Please add a parent/guardian"],
     },
-    fullName: {
+    firstName: {
+      type: String,
+      required: true,
+    },
+    lastName: {
       type: String,
       required: true,
     },
@@ -179,5 +183,10 @@ PatientSchema.virtual("appointments", {
   foreignField: "patientId",
   justOne: false,
 });
+
+//Virtual for  patient's fullName
+// PatientSchema.virtual("fullName").get(function () {
+//   return `${this.firstName} ${this.lastName}`;
+// });
 
 module.exports = mongoose.model("Patient", PatientSchema);

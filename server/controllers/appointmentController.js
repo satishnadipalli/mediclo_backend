@@ -543,25 +543,10 @@ exports.getAppointments = async (req, res) => {
 // @access  Private (Admin, Receptionist, Therapist)
 exports.getAppointmentsCalendarView = async (req, res) => {
   try {
-    // Check for query date
-    let targetDate;
-    if (req.query.date) {
-      // Expecting YYYY-MM-DD format
-      targetDate = new Date(req.query.date);
-      if (isNaN(targetDate.getTime())) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid date format. Use YYYY-MM-DD.",
-        });
-      }
-    } else {
-      targetDate = new Date(); // today
-    }
-    //
-    //Get todays date and end timestamps
-    // const now = new Date();
-    const dateStart = new Date(targetDate.setHours(0, 0, 0, 0));
-    const dateEnd = new Date(targetDate.setHours(23, 59, 59, 999));
+    // Get today's start and end timestamps
+    const now = new Date();
+    const dateStart = new Date(now.setHours(0, 0, 0, 0));
+    const dateEnd = new Date(now.setHours(23, 59, 59, 999));
 
     // Base query
     const query = {
@@ -576,19 +561,12 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       query.therapistId = req.user._id;
     }
 
-    //Fetch all appointments for today
+    // Fetch all appointments for today
     const appointments = await Appointment.find(query)
-      .populate({
-        path: "therapistId",
-        select: "firstName lastName",
-      })
-      .populate({
-        path: "patientId",
-        select: "fullName",
-      })
+      .populate("therapistId", "firstName lastName")
+      .populate("patientId", "fullName")
       .sort({ "therapistId.lastName": 1, startTime: 1 });
 
-    // fixed 45-minute time slots
     const timeSlots = [
       "09:15 AM",
       "10:00 AM",
@@ -606,13 +584,17 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       "07:00 PM",
     ];
 
-    //Group appointments by therapist
     const calendar = {};
 
+    // Loop through appointments
     appointments.forEach((appt) => {
-      const therapistName = `Dr. ${appt.therapistId.firstName} ${appt.therapistId.lastName}`;
+      const therapist = appt.therapistId;
+      if (!therapist || !therapist.firstName || !therapist.lastName) return;
+
+      const therapistName = `Dr. ${therapist.firstName} ${therapist.lastName}`;
       const startFormatted = appt.startTime;
 
+      // Initialize calendar slots for this therapist
       if (!calendar[therapistName]) {
         calendar[therapistName] = {};
         timeSlots.forEach((slot) => {
@@ -620,12 +602,15 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         });
       }
 
-      // Fill the appropriate slot
-      if (calendar[therapistName][startFormatted] === null) {
+      // Fill in if the slot is in list and still empty
+      if (
+        timeSlots.includes(startFormatted) &&
+        !calendar[therapistName][startFormatted]
+      ) {
         calendar[therapistName][startFormatted] = {
           id: appt._id,
           patientId: appt.patientId?._id || null,
-          doctorId: appt.therapistId._id,
+          doctorId: therapist._id,
           patientName: appt.patientId?.fullName || "N/A",
           type: appt.type,
           status: appt.status,
@@ -633,6 +618,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         };
       }
     });
+
     res.status(200).json({
       success: true,
       data: calendar,
