@@ -643,7 +643,6 @@ function calculateDuration(startTime, endTime) {
 exports.getAppointmentsByDate = async (req, res) => {
   try {
     const selectedDate = req.query.date;
-
     if (!selectedDate) {
       return res.status(400).json({
         success: false,
@@ -654,20 +653,19 @@ exports.getAppointmentsByDate = async (req, res) => {
     const dateStart = new Date(new Date(selectedDate).setHours(0, 0, 0, 0));
     const dateEnd = new Date(new Date(selectedDate).setHours(23, 59, 59, 999));
 
-    // Get all therapists
     const therapistQuery = { role: "therapist" };
     if (req.user.role === "therapist") {
       therapistQuery._id = req.user._id;
     }
+
     const therapists = await User.find(therapistQuery).select(
-      "firstName lastName"
+      "firstName lastName _id"
     );
 
-    // Get all appointments for that day
     const appointments = await Appointment.find({
       date: { $gte: dateStart, $lte: dateEnd },
     })
-      .populate("therapistId", "firstName lastName")
+      .populate("therapistId", "firstName lastName _id")
       .populate("patientId", "fullName");
 
     const timeSlots = [
@@ -688,44 +686,36 @@ exports.getAppointmentsByDate = async (req, res) => {
     ];
 
     const calculateDuration = (start, end) => {
-      const [sH, sM, sPeriod] = start.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
-      const [eH, eM, ePeriod] = end.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
-
-      const sHours = (parseInt(sH) % 12) + (sPeriod === "PM" ? 12 : 0);
-      const eHours = (parseInt(eH) % 12) + (ePeriod === "PM" ? 12 : 0);
-
-      const sDate = new Date(0, 0, 0, sHours, parseInt(sM));
-      const eDate = new Date(0, 0, 0, eHours, parseInt(eM));
-      const diffMs = eDate - sDate;
-
-      return Math.round(diffMs / 60000); // in minutes
+      const [sH, sM, sP] = start.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
+      const [eH, eM, eP] = end.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
+      const to24 = (h, p) => (p === "PM" ? (h % 12) + 12 : h % 12);
+      const sDate = new Date(0, 0, 0, to24(+sH, sP), +sM);
+      const eDate = new Date(0, 0, 0, to24(+eH, eP), +eM);
+      return Math.round((eDate - sDate) / 60000);
     };
 
     const calendar = {};
 
-    // Step 1: Initialize calendar for each therapist with empty slots
+    // Initialize
     therapists.forEach((t) => {
-      const therapistName = `Dr. ${t.firstName} ${t.lastName}`;
-      calendar[therapistName] = {};
+      calendar[t._id] = {
+        name: `Dr. ${t.firstName} ${t.lastName}`,
+        id: t._id,
+        slots: {},
+      };
       timeSlots.forEach((slot) => {
-        calendar[therapistName][slot] = null;
+        calendar[t._id].slots[slot] = null;
       });
     });
 
-    // Step 2: Fill appointments into the calendar
+    // Fill appointments
     appointments.forEach((appt) => {
       const t = appt.therapistId;
-      if (!t || !t.firstName || !t.lastName) return;
+      if (!t || !calendar[t._id]) return;
 
-      const therapistName = `Dr. ${t.firstName} ${t.lastName}`;
       const slot = appt.startTime;
-
-      if (
-        calendar[therapistName] &&
-        timeSlots.includes(slot) &&
-        calendar[therapistName][slot] === null
-      ) {
-        calendar[therapistName][slot] = {
+      if (timeSlots.includes(slot)) {
+        calendar[t._id].slots[slot] = {
           id: appt._id,
           patientId: appt.patientId?._id || null,
           doctorId: t._id,
@@ -742,10 +732,6 @@ exports.getAppointmentsByDate = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: calendar,
-      doctors: therapists.map((t) => ({
-        _id: t._id,
-        name: `Dr. ${t.firstName} ${t.lastName}`,
-      })),
       patients,
     });
   } catch (err) {
