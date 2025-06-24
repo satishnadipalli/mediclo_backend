@@ -30,9 +30,7 @@ router.use(protect, authorize("admin", "therapist", "receptionist"));
 router.route("/").get(getPatients);
 
 // POST /api/patients - Create a new patient
-router
-  .route("/register")
-  .post(createPatientValidation, validateRequest, createPatient);
+router.route("/register").post(createPatient);
 
 // GET /api/patients/:id - Get single patient
 // PUT /api/patients/:id - Update patient

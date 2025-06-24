@@ -658,6 +658,120 @@ function calculateDuration(startTime, endTime) {
   return end - start;
 }
 
+// @desc    Get all appointments for a selected date
+// @route   GET /api/appointments/by-date?date=YYYY-MM-DD
+// @access  Private (admin, receptionist, therapist)
+// for therapist list
+exports.getAppointmentsByDate = async (req, res) => {
+  try {
+    const selectedDate = req.query.date;
+
+    if (!selectedDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Date is required in query string (YYYY-MM-DD)",
+      });
+    }
+
+    const dateStart = new Date(new Date(selectedDate).setHours(0, 0, 0, 0));
+    const dateEnd = new Date(new Date(selectedDate).setHours(23, 59, 59, 999));
+
+    // Get all therapists
+    const therapistQuery = { role: "therapist" };
+    if (req.user.role === "therapist") {
+      therapistQuery._id = req.user._id;
+    }
+    const therapists = await User.find(therapistQuery).select(
+      "firstName lastName"
+    );
+
+    // Get all appointments for that day
+    const appointments = await Appointment.find({
+      date: { $gte: dateStart, $lte: dateEnd },
+    })
+      .populate("therapistId", "firstName lastName")
+      .populate("patientId", "fullName");
+
+    const timeSlots = [
+      "09:15 AM",
+      "10:00 AM",
+      "10:45 AM",
+      "11:30 AM",
+      "12:15 PM",
+      "01:00 PM",
+      "01:45 PM",
+      "02:30 PM",
+      "03:15 PM",
+      "04:00 PM",
+      "04:45 PM",
+      "05:30 PM",
+      "06:15 PM",
+      "07:00 PM",
+    ];
+
+    const calculateDuration = (start, end) => {
+      const [sH, sM, sPeriod] = start.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
+      const [eH, eM, ePeriod] = end.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
+
+      const sHours = (parseInt(sH) % 12) + (sPeriod === "PM" ? 12 : 0);
+      const eHours = (parseInt(eH) % 12) + (ePeriod === "PM" ? 12 : 0);
+
+      const sDate = new Date(0, 0, 0, sHours, parseInt(sM));
+      const eDate = new Date(0, 0, 0, eHours, parseInt(eM));
+      const diffMs = eDate - sDate;
+
+      return Math.round(diffMs / 60000); // in minutes
+    };
+
+    const calendar = {};
+
+    // Step 1: Initialize calendar for each therapist with empty slots
+    therapists.forEach((t) => {
+      const therapistName = `Dr. ${t.firstName} ${t.lastName}`;
+      calendar[therapistName] = {};
+      timeSlots.forEach((slot) => {
+        calendar[therapistName][slot] = null;
+      });
+    });
+
+    // Step 2: Fill appointments into the calendar
+    appointments.forEach((appt) => {
+      const t = appt.therapistId;
+      if (!t || !t.firstName || !t.lastName) return;
+
+      const therapistName = `Dr. ${t.firstName} ${t.lastName}`;
+      const slot = appt.startTime;
+
+      if (
+        calendar[therapistName] &&
+        timeSlots.includes(slot) &&
+        calendar[therapistName][slot] === null
+      ) {
+        calendar[therapistName][slot] = {
+          id: appt._id,
+          patientId: appt.patientId?._id || null,
+          doctorId: t._id,
+          patientName: appt.patientId?.fullName || "N/A",
+          type: appt.type,
+          status: appt.status,
+          duration: calculateDuration(appt.startTime, appt.endTime),
+        };
+      }
+    });
+
+    const patients = await Patient.find({});
+
+    return res.status(200).json({
+      success: true,
+      data: calendar,
+      patients,
+    });
+  } catch (err) {
+    console.error("getAppointmentsByDate error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
 // @desc    Get single appointment
 // @route   GET /api/appointments/:id
 // @access  Private

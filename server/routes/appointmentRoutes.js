@@ -23,6 +23,7 @@ const {
   validateUpdateAppointment,
   validateAppointmentRequest,
   validateFormalAppointment,
+  getAppointmentsByDate,
 } = require("../controllers/appointmentController");
 
 // ======================
@@ -89,6 +90,13 @@ router.get(
   protect,
   authorize("admin", "receptionist", "therapist"),
   getAppointmentsCalendarView
+);
+// Get by date
+router.get(
+  "/by-date",
+  protect,
+  authorize("admin", "receptionist", "therapist"),
+  getAppointmentsByDate
 );
 
 // Get, update, delete single appointment
