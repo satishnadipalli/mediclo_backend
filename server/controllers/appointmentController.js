@@ -238,6 +238,7 @@ exports.createAppointment = async (req, res) => {
 
   try {
     const {
+      patientId,
       patientName,
       fatherName,
       email,
@@ -252,9 +253,12 @@ exports.createAppointment = async (req, res) => {
       address,
       paymentAmount,
       paymentMethod,
+      consultationMode,
+      consent,
+      totalSessions,
     } = req.body;
 
-    // Check service exists
+    // Validate service
     const service = await Service.findById(serviceId);
     if (!service) {
       return res
@@ -262,64 +266,49 @@ exports.createAppointment = async (req, res) => {
         .json({ success: false, error: "Service not found!" });
     }
 
-    // Check therapist if provided
-    if (therapistId) {
-      const therapist = await User.findById(therapistId);
-      if (!therapist || therapist.role !== "therapist") {
-        return res
-          .status(404)
-          .json({ success: false, error: "Therapist not found!" });
-      }
+    // Validate therapist
+    const therapist = await User.findById(therapistId);
+    if (!therapist || therapist.role !== "therapist") {
+      return res
+        .status(404)
+        .json({ success: false, error: "Therapist not found!" });
     }
 
-    // Check or create User (parent)
-    let user = await User.findOne({ email });
-    if (!user) {
-      const nameParts = fatherName.split(" ");
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(" ") || "Doe";
-      user = await User.create({
-        email,
-        password: "temporary", // You may want to trigger a reset process
-        role: "parent",
-        firstName: firstName,
-        lastName: lastName,
-        phone: phone,
+    // Determine patient
+    let patient;
+    if (patientId) {
+      patient = await Patient.findById(patientId);
+      if (!patient) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Patient not found!" });
+      }
+    } else {
+      patient = await Patient.create({
+        fullName: patientName,
+        parentInfo: {
+          name: fatherName,
+          phone: phone,
+          email: email,
+          relationship: "Father",
+        },
       });
     }
 
-    // Create patient record
-    const patient = await Patient.create({
-      parentId: user._id,
-      fullName: patientName,
-      parentInfo: {
-        name: fatherName,
-        phone: phone,
-        email: email,
-        relationship: "Father",
-      },
-      emergencyContact: {
-        name: fatherName,
-        relation: "Father",
-        phone: phone,
-      },
-    });
-
-    // Create appointment
     const appointment = await Appointment.create({
-      userId: user._id,
+      userId: req.user._id,
       patientId: patient._id,
       patientName,
       fatherName,
       email,
       phone,
       serviceId,
-      therapistId: therapistId || null,
+      therapistId,
       date,
       startTime,
       endTime,
-      type: type || "initial assessment",
-      status: therapistId ? "scheduled" : "pending_assignment",
+      type,
+      consultationMode,
       notes,
       address,
       payment: {
@@ -327,18 +316,21 @@ exports.createAppointment = async (req, res) => {
         method: paymentMethod || "not_specified",
         status: "pending",
       },
-      assignedBy: req.user._id || null,
+      consent: consent || false,
+      totalSessions: totalSessions || 1,
+      status: "scheduled",
+      assignedBy: req.user._id,
       assignedAt: new Date(),
     });
 
     return res.status(201).json({
       success: true,
-      message: "Appointment created",
+      message: "Appointment created successfully",
       data: appointment,
     });
-  } catch (error) {
-    console.error("Create appointment error:", error);
-    return res.status(500).json({ success: false, error: "Server Error" });
+  } catch (err) {
+    console.error("Create appointment error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
   }
 };
 
@@ -750,6 +742,10 @@ exports.getAppointmentsByDate = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: calendar,
+      doctors: therapists.map((t) => ({
+        _id: t._id,
+        name: `Dr. ${t.firstName} ${t.lastName}`,
+      })),
       patients,
     });
   } catch (err) {
