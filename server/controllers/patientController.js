@@ -88,7 +88,48 @@ exports.getPatients = async (req, res, next) => {
       ];
     }
 
-    const patients = await Patient.find(query);
+    let patients = await Patient.find(query).lean();
+
+    //Fetch all aappointments
+    const allAppointments = await Appointment.find({
+      patientId: { $in: patients.map((p) => p._id) },
+    }).sort({ date: 1 });
+
+    // Attach appointment data
+    patients = patients.map((patient) => {
+      const relevant = allAppointments.filter(
+        (appt) => appt.patientId.toString() === patient._id.toString()
+      );
+
+      const future = relevant.find((a) => a.date > new Date());
+      const past = [...relevant].reverse().find((a) => a.date <= new Date());
+
+      return {
+        ...patient,
+        latestAppointment: future
+          ? {
+              id: future._id,
+              appointmentDate: future.date,
+              appointmentSlot: future.startTime,
+              paymentStatus: future.paymentStatus || "pending",
+            }
+          : null,
+        lastVisit: past ? past.date : null,
+        age: patient.dateOfBirth
+          ? Math.floor(
+              (new Date() - new Date(patient.dateOfBirth)) /
+                (365.25 * 24 * 60 * 60 * 1000)
+            )
+          : null,
+      };
+    });
+
+    // Sort by earliest upcoming appointment
+    patients.sort((a, b) => {
+      const aDate = a.latestAppointment?.appointmentDate || Infinity;
+      const bDate = b.latestAppointment?.appointmentDate || Infinity;
+      return new Date(aDate) - new Date(bDate);
+    });
 
     res.status(200).json({
       success: true,
