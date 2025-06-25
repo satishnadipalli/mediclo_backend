@@ -95,6 +95,24 @@ exports.getPatients = async (req, res, next) => {
       patientId: { $in: patients.map((p) => p._id) },
     }).sort({ date: 1 });
 
+    //Schedules
+    const timeOrder = [
+      "09:15 AM",
+      "10:00 AM",
+      "10:45 AM",
+      "11:30 AM",
+      "12:15 PM",
+      "01:00 PM",
+      "01:45 PM",
+      "02:30 PM",
+      "03:15 PM",
+      "04:00 PM",
+      "04:45 PM",
+      "05:30 PM",
+      "06:15 PM",
+      "07:00 PM",
+    ];
+
     // Attach appointment data
     patients = patients.map((patient) => {
       const relevant = allAppointments.filter(
@@ -126,9 +144,23 @@ exports.getPatients = async (req, res, next) => {
 
     // Sort by earliest upcoming appointment
     patients.sort((a, b) => {
-      const aDate = a.latestAppointment?.appointmentDate || Infinity;
-      const bDate = b.latestAppointment?.appointmentDate || Infinity;
-      return new Date(aDate) - new Date(bDate);
+      const aDate = a.latestAppointment?.appointmentDate
+        ? new Date(a.latestAppointment.appointmentDate)
+        : Infinity;
+      const bDate = b.latestAppointment?.appointmentDate
+        ? new Date(b.latestAppointment.appointmentDate)
+        : Infinity;
+
+      if (aDate < bDate) return -1;
+      if (aDate > bDate) return 1;
+
+      const aSlotIndex = timeOrder.indexOf(
+        a.latestAppointment?.appointmentSlot || ""
+      );
+      const bSlotIndex = timeOrder.indexOf(
+        b.latestAppointment?.appointmentSlot || ""
+      );
+      return aSlotIndex - bSlotIndex;
     });
 
     res.status(200).json({
