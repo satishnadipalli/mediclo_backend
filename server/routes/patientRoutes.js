@@ -107,3 +107,6 @@ router.route("/:id/parent-photo").put(updateParentPhoto);
 router.route("/:id/medical-records").post(addMedicalRecord);
 
 module.exports = router;
+
+
+

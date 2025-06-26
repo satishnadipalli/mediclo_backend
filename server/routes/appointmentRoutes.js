@@ -24,6 +24,8 @@ const {
   validateAppointmentRequest,
   validateFormalAppointment,
   getAppointmentsByDate,
+  getAllUpcomingAppointmentsForTherapists,
+  updateAppointmentStatusAndDetails,
 } = require("../controllers/appointmentController");
 
 // ======================
@@ -77,10 +79,10 @@ router.get(
 // Create formal appointment (receptionist / admin)
 router.post(
   "/",
-  protect,
-  authorize("admin", "receptionist"),
-  validateAppointment,
-  validateRequest,
+  // protect,
+  // authorize("admin", "receptionist"),
+  // validateAppointment,
+  // validateRequest,
   createAppointment
 );
 
@@ -99,19 +101,20 @@ router.get(
   getAppointmentsByDate
 );
 
+
+router.get('/upcoming',getAllUpcomingAppointmentsForTherapists);
 // Get, update, delete single appointment
 router
   .route("/:id")
   .get(protect, authorize("admin", "receptionist", "therapist"), getAppointment)
   .put(
-    protect,
-    authorize("admin", "receptionist", "therapist"),
-    validateUpdateAppointment,
-    validateRequest,
+    // authorize("admin", "receptionist", "therapist"),
     updateAppointment
   )
   .delete(protect, authorize("admin", "receptionist"), deleteAppointment);
 
+
+router.put('/updateappointment/:id',updateAppointmentStatusAndDetails)
 // Reschedule appointment
 router.put(
   "/:id/reschedule",

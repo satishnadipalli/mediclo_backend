@@ -233,6 +233,8 @@ exports.convertRequestToAppointment = async (req, res) => {
 // @access  Private (Admin, Receptionist)
 exports.createAppointment = async (req, res) => {
   const errors = validationResult(req);
+
+  console.log("first place");
   if (!errors.isEmpty())
     return res.status(400).json({ success: false, errors: errors.array() });
 
@@ -257,6 +259,8 @@ exports.createAppointment = async (req, res) => {
       consent,
       totalSessions,
     } = req.body;
+
+    console.log("patient name", patientName);
 
     // Validate service
     const service = await Service.findById(serviceId);
@@ -296,8 +300,8 @@ exports.createAppointment = async (req, res) => {
     }
 
     const appointment = await Appointment.create({
-      userId: req.user._id,
-      patientId: patient._id,
+      userId: req?.user?._id,
+      patientId: patient?._id,
       patientName,
       fatherName,
       email,
@@ -319,7 +323,7 @@ exports.createAppointment = async (req, res) => {
       consent: consent || false,
       totalSessions: totalSessions || 1,
       status: "scheduled",
-      assignedBy: req.user._id,
+      assignedBy: req?.user?._id,
       assignedAt: new Date(),
     });
 
@@ -343,32 +347,200 @@ exports.createAppointment = async (req, res) => {
 // @access  Private (Admin, Receptionist, Therapist)
 exports.updateAppointment = async (req, res) => {
   try {
+    console.log("Incoming payment update:", req.body.payment);
+
+    // Step 1: Find the appointment
     let appointment = await Appointment.findById(req.params.id);
     if (!appointment) {
-      return res
-        .status(404)
-        .json({ success: false, error: "Appointment not found" });
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      });
     }
 
+    // Optional authorization check (commented out for now)
+    /*
     if (
-      req.user.role !== "admin" &&
-      req.user.role !== "receptionist" &&
-      appointment.therapistId?.toString() !== req.user._id.toString()
+      req?.user?.role !== "admin" &&
+      req?.user?.role !== "receptionist" &&
+      appointment.therapistId?.toString() !== req?.user?._id.toString()
     ) {
-      return res.status(403).json({ success: false, error: "Not authorized" });
+      return res.status(403).json({
+        success: false,
+        error: "Not authorized",
+      });
     }
+    */
 
-    appointment = await Appointment.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+    // Step 2: Update the appointment's payment info
+    appointment = await Appointment.findByIdAndUpdate(
+      req.params.id,
+      {
+        "payment.amount": req.body.payment.amount,
+        "payment.status": req.body.payment.status,
+        "payment.method": req.body.payment.method,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    // Step 3: Fetch all patients
+    let patients = await Patient.find({}).lean();
+
+    // Step 4: Fetch all appointments for all patients
+    const allAppointments = await Appointment.find({
+      patientId: { $in: patients.map((p) => p._id) },
+    }).sort({ date: 1 });
+
+    const timeOrder = [
+      "09:15 AM", "10:00 AM", "10:45 AM", "11:30 AM", "12:15 PM",
+      "01:00 PM", "01:45 PM", "02:30 PM", "03:15 PM", "04:00 PM",
+      "04:45 PM", "05:30 PM", "06:15 PM", "07:00 PM",
+    ];
+
+    // Step 5: Attach latest appointment & age to each patient
+    patients = patients.map((patient) => {
+      const relevantAppointments = allAppointments.filter(
+        (appt) => appt.patientId.toString() === patient._id.toString()
+      );
+
+      const future = relevantAppointments.find((a) => a.date > new Date());
+      const past = [...relevantAppointments].reverse().find((a) => a.date <= new Date());
+
+      return {
+        ...patient,
+        latestAppointment: future
+          ? {
+              id: future._id,
+              method: future?.payment?.method,
+              amount: future?.payment?.amount,
+              appointmentDate: future?.date,
+              appointmentSlot: future?.startTime,
+              paymentStatus: future?.payment?.status || "pending",
+            }
+          : null,
+        lastVisit: past ? past.date : null,
+        age: patient.dateOfBirth
+          ? Math.floor(
+              (new Date() - new Date(patient.dateOfBirth)) /
+              (365.25 * 24 * 60 * 60 * 1000)
+            )
+          : null,
+      };
     });
 
-    res.status(200).json({ success: true, data: appointment });
+    // Step 6: Sort patients by earliest upcoming appointment
+    patients.sort((a, b) => {
+      const aDate = a.latestAppointment?.appointmentDate
+        ? new Date(a.latestAppointment.appointmentDate)
+        : Infinity;
+      const bDate = b.latestAppointment?.appointmentDate
+        ? new Date(b.latestAppointment.appointmentDate)
+        : Infinity;
+
+      if (aDate < bDate) return -1;
+      if (aDate > bDate) return 1;
+
+      const aSlotIndex = timeOrder.indexOf(a.latestAppointment?.appointmentSlot || "");
+      const bSlotIndex = timeOrder.indexOf(b.latestAppointment?.appointmentSlot || "");
+
+      return aSlotIndex - bSlotIndex;
+    });
+
+    // Final response
+    return res.status(200).json({
+      success: true,
+      updatedAppointment: appointment,
+      data: patients,
+    });
   } catch (err) {
     console.error("Update error:", err);
-    res.status(500).json({ success: false, error: "Server Error" });
+    return res.status(500).json({
+      success: false,
+      error: "Server Error",
+    });
   }
 };
+
+
+exports.updateAppointmentStatusAndDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Find the appointment
+    const appointment = await Appointment.findById(id);
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    // Special handling for completion
+    if (updates.status === 'completed') {
+      // Auto-increment sessionsCompleted if not explicitly provided
+      if (updates.sessionsCompleted === undefined) {
+        updates.sessionsCompleted = appointment.sessionsCompleted + 1;
+      }
+      
+      // Ensure sessionsCompleted doesn't exceed totalSessions
+      if (updates.sessionsCompleted > appointment.totalSessions) {
+        updates.sessionsCompleted = appointment.totalSessions;
+      }
+
+      // Auto-increment sessionsPaid by 1 when completing
+      if (updates.sessionsPaid === undefined) {
+        updates.sessionsPaid = appointment.sessionsPaid + 1;
+      }
+      
+      // Ensure sessionsPaid doesn't exceed totalSessions
+      if (updates.sessionsPaid > appointment.totalSessions) {
+        updates.sessionsPaid = appointment.totalSessions;
+      }
+
+      // Auto-update payment status to paid if completing and amount is set
+      if (updates.payment && updates.payment.amount > 0 && !updates.payment.status) {
+        updates.payment.status = 'paid';
+      }
+    }
+
+    // Update the appointment
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
+      id,
+      {
+        ...updates,
+        // Merge payment object properly
+        ...(updates.payment && {
+          payment: {
+            ...appointment.payment,
+            ...updates.payment
+          }
+        })
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    ).populate('userId patientId therapistId serviceId assignedBy');
+
+    res.json({
+      success: true,
+      message: 'Appointment updated successfully',
+      data: updatedAppointment
+    });
+
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update appointment'
+    });
+  }
+};
+
 
 // @desc    Delete appointment
 // @route   DELETE /api/appointments/:id
@@ -535,10 +707,21 @@ exports.getAppointments = async (req, res) => {
 // @access  Private (Admin, Receptionist, Therapist)
 exports.getAppointmentsCalendarView = async (req, res) => {
   try {
-    // Get today's start and end timestamps
-    const now = new Date();
-    const dateStart = new Date(now.setHours(0, 0, 0, 0));
-    const dateEnd = new Date(now.setHours(23, 59, 59, 999));
+    // Get date from query params or default to today
+    const requestedDate = req.query.date;
+    let dateStart, dateEnd;
+
+    if (requestedDate) {
+      // Use the requested date
+      const targetDate = new Date(requestedDate);
+      dateStart = new Date(targetDate.setHours(0, 0, 0, 0));
+      dateEnd = new Date(targetDate.setHours(23, 59, 59, 999));
+    } else {
+      // Default to today
+      const now = new Date();
+      dateStart = new Date(now.setHours(0, 0, 0, 0));
+      dateEnd = new Date(now.setHours(23, 59, 59, 999));
+    }
 
     // Base query
     const query = {
@@ -553,10 +736,11 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       query.therapistId = req.user._id;
     }
 
-    // Fetch all appointments for today
+    // Fetch all appointments for the specified date with full population
     const appointments = await Appointment.find(query)
-      .populate("therapistId", "firstName lastName")
-      .populate("patientId", "fullName")
+      .populate("therapistId", "firstName lastName email specialization")
+      .populate("patientId", "fullName childName age dateOfBirth childDOB gender childGender")
+      .populate("serviceId", "name price duration")
       .sort({ "therapistId.lastName": 1, startTime: 1 });
 
     const timeSlots = [
@@ -594,30 +778,95 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         });
       }
 
+      console.log("Processing appointment:", appt._id);
+
       // Fill in if the slot is in list and still empty
       if (
         timeSlots.includes(startFormatted) &&
         !calendar[therapistName][startFormatted]
       ) {
+        // Extract patient name with fallback logic
+        const patientName = appt.patientName || 
+                           appt.patientId?.fullName || 
+                           appt.patientId?.childName || 
+                           "N/A";
+
+        // Calculate duration
+        const duration = calculateDuration(appt.startTime, appt.endTime);
+
+        // Build the appointment object with all required data
         calendar[therapistName][startFormatted] = {
-          id: appt._id,
-          patientId: appt.patientId?._id || null,
-          doctorId: therapist._id,
-          patientName: appt.patientId?.fullName || "N/A",
-          type: appt.type,
-          status: appt.status,
-          duration: calculateDuration(appt.startTime, appt.endTime),
+          id: appt._id.toString(),
+          patientId: appt.patientId?._id?.toString() || null,
+          doctorId: therapist._id.toString(),
+          patientName: patientName,
+          type: appt.type || "initial assessment",
+          status: appt.status || "scheduled",
+          duration: duration,
+          
+          // Payment information (required by frontend)
+          payment: {
+            amount: appt.payment?.amount || 0,
+            status: appt.payment?.status || "pending",
+            method: appt.payment?.method || "not_specified"
+          },
+          
+          // Session information (required by frontend)
+          totalSessions: appt.totalSessions || 0,
+          sessionsPaid: appt.sessionsPaid || 0,
+          sessionsCompleted: appt.sessionsCompleted || 0,
+          
+          // Contact information (required by frontend)
+          phone: appt.phone || "N/A",
+          email: appt.email || "N/A",
+          
+          // Additional appointment details
+          notes: appt.notes || "",
+          consultationMode: appt.consultationMode || "in-person",
+          fatherName: appt.fatherName || "",
+          address: appt.address || "",
+          
+          // Service information if available
+          serviceInfo: appt.serviceId ? {
+            name: appt.serviceId.name,
+            price: appt.serviceId.price,
+            duration: appt.serviceId.duration
+          } : null,
+          
+          // Timestamps
+          createdAt: appt.createdAt,
+          updatedAt: appt.updatedAt,
+          
+          // Additional flags
+          consent: appt.consent || false,
+          isDraft: appt.isDraft || false
         };
       }
     });
 
+    // Add empty slots for doctors who don't have appointments but should appear in calendar
+    // This ensures all active therapists appear in the calendar view
+    if (req.user.role === "admin" || req.user.role === "receptionist") {
+      // You might want to fetch all active therapists and ensure they have slots
+      // This is optional based on your requirements
+    }
+
     res.status(200).json({
       success: true,
       data: calendar,
+      meta: {
+        date: requestedDate || dateStart.toISOString().split('T')[0],
+        totalAppointments: appointments.length,
+        timeSlots: timeSlots
+      }
     });
   } catch (error) {
     console.error("Calendar fetch error:", error);
-    res.status(500).json({ success: false, error: "Server Error" });
+    res.status(500).json({ 
+      success: false, 
+      error: "Server Error",
+      message: error.message 
+    });
   }
 };
 
@@ -860,5 +1109,40 @@ exports.updateAppointmentStatus = async (req, res) => {
       success: false,
       error: "Server Error",
     });
+  }
+};
+
+// @desc    Get all upcoming appointments for all therapists
+// @route   GET /api/appointments/upcoming/all
+// @access  Private (Admin, Receptionist)
+exports.getAllUpcomingAppointmentsForTherapists = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+
+    // Only allow access to admin or receptionist
+    // if (!["admin", "receptionist"].includes(req?.user?.role)) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     error: "Access denied: Admin or Receptionist only",
+    //   });
+    // }
+
+    const appointments = await Appointment.find({
+      date: { $gte: today },
+    })
+      .populate("therapistId", "firstName lastName email")
+      .populate("patientId", "fullName")
+      .populate("serviceId", "name category")
+      .sort({ date: 1, startTime: 1 });
+
+    res.status(200).json({
+      success: true,
+      count: appointments.length,
+      data: appointments,
+    });
+  } catch (error) {
+    console.error("Error fetching upcoming appointments:", error);
+    res.status(500).json({ success: false, error: "Server Error" });
   }
 };

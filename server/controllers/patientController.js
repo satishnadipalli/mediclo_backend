@@ -122,14 +122,19 @@ exports.getPatients = async (req, res, next) => {
       const future = relevant.find((a) => a.date > new Date());
       const past = [...relevant].reverse().find((a) => a.date <= new Date());
 
+
+      console.log(future,"futrei")
+
       return {
         ...patient,
         latestAppointment: future
           ? {
               id: future._id,
-              appointmentDate: future.date,
-              appointmentSlot: future.startTime,
-              paymentStatus: future.paymentStatus || "pending",
+              method:future?.payment?.method,
+              amount:future?.amount?.amount,
+              appointmentDate: future?.date,
+              appointmentSlot: future?.startTime,
+              paymentStatus: future?.payment?.status || "pending",
             }
           : null,
         lastVisit: past ? past.date : null,
