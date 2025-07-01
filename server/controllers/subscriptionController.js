@@ -1,31 +1,51 @@
-const Subscription = require("../models/Subscription");
-const SubscriptionPlan = require("../models/SubscriptionPlan");
-const User = require("../models/User");
-const { validationResult, body } = require("express-validator");
+const Subscription = require("../models/Subscription")
+const SubscriptionPlan = require("../models/SubscriptionPlan")
+const User = require("../models/User")
+const { validationResult, body } = require("express-validator")
 
 /**********************
  * VALIDATION
  **********************/
 
 exports.validateCreateSubscription = [
-  body("plan")
-    .notEmpty()
-    .withMessage("Plan ID is required")
-    .isMongoId()
-    .withMessage("Invalid plan ID format"),
-  body("paymentMethod")
-    .optional()
-    .isIn(["card", "cash", "insurance"])
-    .withMessage("Invalid payment method"),
+  body("plan").notEmpty().withMessage("Plan ID is required").isMongoId().withMessage("Invalid plan ID format"),
+  body("paymentMethod").optional().isIn(["card", "cash", "insurance"]).withMessage("Invalid payment method"),
   body("transactionId").optional().isString(),
   (req, res, next) => {
-    const errors = validationResult(req);
+    const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      return res.status(400).json({ success: false, errors: errors.array() })
     }
-    next();
+    next()
   },
-];
+]
+
+exports.validateCreatePlan = [
+  body("name")
+    .notEmpty()
+    .withMessage("Plan name is required")
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Plan name must be between 2 and 100 characters"),
+  body("description")
+    .notEmpty()
+    .withMessage("Plan description is required")
+    .isLength({ min: 10, max: 500 })
+    .withMessage("Plan description must be between 10 and 500 characters"),
+  body("price")
+    .isNumeric()
+    .withMessage("Price must be a number")
+    .isFloat({ min: 0 })
+    .withMessage("Price must be greater than or equal to 0"),
+  body("billingCycle").isIn(["monthly", "quarterly", "biannual", "annual"]).withMessage("Invalid billing cycle"),
+  body("status").optional().isIn(["active", "inactive"]).withMessage("Status must be active or inactive"),
+  (req, res, next) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() })
+    }
+    next()
+  },
+]
 
 /**********************
  * UTILITIES
@@ -33,39 +53,42 @@ exports.validateCreateSubscription = [
 
 //Helper to calculate subscription dates based on plan's billing cycle
 function calculateDates(plan, startDate = new Date()) {
-  let endDate = new Date(startDate);
-  let nextRenewalDate = new Date(startDate);
+  const endDate = new Date(startDate)
+  const nextRenewalDate = new Date(startDate)
 
   switch (plan.billingCycle) {
     case "monthly":
-      endDate.setMonth(endDate.getMonth() + 1);
-      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
-      break;
+      endDate.setMonth(endDate.getMonth() + 1)
+      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1)
+      break
     case "quarterly":
-      endDate.setMonth(endDate.getMonth() + 3);
-      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 3);
-      break;
+      endDate.setMonth(endDate.getMonth() + 3)
+      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 3)
+      break
     case "biannual":
-      endDate.setMonth(endDate.getMonth() + 6);
-      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 6);
-      break;
+      endDate.setMonth(endDate.getMonth() + 6)
+      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 6)
+      break
     case "annual":
-      endDate.setFullYear(endDate.getFullYear() + 1);
-      nextRenewalDate.setFullYear(nextRenewalDate.getFullYear() + 1);
-      break;
+      endDate.setFullYear(endDate.getFullYear() + 1)
+      nextRenewalDate.setFullYear(nextRenewalDate.getFullYear() + 1)
+      break
     default:
-      endDate.setMonth(endDate.getMonth() + 1);
-      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1);
+      endDate.setMonth(endDate.getMonth() + 1)
+      nextRenewalDate.setMonth(nextRenewalDate.getMonth() + 1)
   }
+
   if (plan.gracePeriod) {
-    endDate.setDate(endDate.getDate() + plan.gracePeriod);
+    endDate.setDate(endDate.getDate() + plan.gracePeriod)
   }
-  return { startDate, endDate, nextRenewalDate };
+
+  return { startDate, endDate, nextRenewalDate }
 }
 
 /**********************
  * PUBLIC ROUTES
  **********************/
+
 /**
  * @desc    Get all active subscription plans with pagination and filters
  * @route   GET /api/subscriptions/plans
@@ -73,21 +96,19 @@ function calculateDates(plan, startDate = new Date()) {
  */
 exports.getSubscriptionPlans = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const skip = (page - 1) * limit;
+    const page = Number.parseInt(req.query.page, 10) || 1
+    const limit = Number.parseInt(req.query.limit, 10) || 10
+    const skip = (page - 1) * limit
 
-    let queryObj = { status: "active" };
+    const queryObj = { status: "active" }
 
     if (req.query.billingCycle) {
-      queryObj.billingCycle = req.query.billingCycle;
+      queryObj.billingCycle = req.query.billingCycle
     }
 
-    const total = await SubscriptionPlan.countDocuments(queryObj);
-    const plans = await SubscriptionPlan.find(queryObj)
-      .sort("order")
-      .skip(skip)
-      .limit(limit);
+    const total = await SubscriptionPlan.countDocuments(queryObj)
+
+    const plans = await SubscriptionPlan.find(queryObj).sort("order").skip(skip).limit(limit)
 
     res.status(200).json({
       success: true,
@@ -96,12 +117,15 @@ exports.getSubscriptionPlans = async (req, res, next) => {
       page,
       totalPages: Math.ceil(total / limit),
       data: plans,
-    });
+    })
   } catch (err) {
-    console.error("Fetch plans error:", err);
-    next(err);
+    console.error("Fetch plans error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**
  * @desc    Get a single subscription plan by ID
@@ -110,16 +134,21 @@ exports.getSubscriptionPlans = async (req, res, next) => {
  */
 exports.getSubscriptionPlan = async (req, res, next) => {
   try {
-    const plan = await SubscriptionPlan.findById(req.params.id);
+    const plan = await SubscriptionPlan.findById(req.params.id)
+
     if (!plan) {
-      return res.status(404).json({ success: false, error: "Plan not found" });
+      return res.status(404).json({ success: false, error: "Plan not found" })
     }
-    res.status(200).json({ success: true, data: plan });
+
+    res.status(200).json({ success: true, data: plan })
   } catch (error) {
-    console.error("Get plan error:", error);
-    next(error);
+    console.error("Get plan error:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**********************
  * USER/ADMIN ROUTES
@@ -132,25 +161,27 @@ exports.getSubscriptionPlan = async (req, res, next) => {
  */
 exports.createSubscription = async (req, res, next) => {
   try {
-    const { plan: planId } = req.body;
-    const plan = await SubscriptionPlan.findById(planId);
+    const { plan: planId } = req.body
+
+    const plan = await SubscriptionPlan.findById(planId)
+
     if (!plan) {
-      return res.status(404).json({ success: false, error: "Plan not found" });
+      return res.status(404).json({ success: false, error: "Plan not found" })
     }
 
     const existing = await Subscription.findOne({
       user: req.user._id,
       isActive: true,
-    });
+    })
 
     if (existing) {
       return res.status(400).json({
         success: false,
         error: "User already has an active subscription",
-      });
+      })
     }
 
-    const { startDate, endDate, nextRenewalDate } = calculateDates(plan);
+    const { startDate, endDate, nextRenewalDate } = calculateDates(plan)
 
     const subscription = await Subscription.create({
       user: req.user._id,
@@ -173,19 +204,22 @@ exports.createSubscription = async (req, res, next) => {
           transactionId: req.body.transactionId || "",
         },
       ],
-    });
+    })
 
-    req.user.membership = plan.name.toLowerCase();
-    req.user.subscriptionStart = startDate;
-    req.user.subscriptionEnd = endDate;
-    await req.user.save();
+    req.user.membership = plan.name.toLowerCase()
+    req.user.subscriptionStart = startDate
+    req.user.subscriptionEnd = endDate
+    await req.user.save()
 
-    res.status(201).json({ success: true, data: subscription });
+    res.status(201).json({ success: true, data: subscription })
   } catch (err) {
-    console.error("Create subscription error:", err);
-    next(err);
+    console.error("Create subscription error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**
  * @desc    Renew subscription
@@ -194,59 +228,54 @@ exports.createSubscription = async (req, res, next) => {
  */
 exports.renewSubscription = async (req, res, next) => {
   try {
-    const subscription = await Subscription.findById(req.params.id).populate(
-      "plan"
-    );
+    const subscription = await Subscription.findById(req.params.id).populate("plan")
+
     if (!subscription) {
-      return res
-        .status(404)
-        .json({ success: false, error: "Subscription not found" });
+      return res.status(404).json({ success: false, error: "Subscription not found" })
     }
 
     // Allow only the owner or admin
-    if (
-      req.user.role !== "admin" &&
-      String(subscription.user) !== String(req.user._id)
-    ) {
+    if (req.user.role !== "admin" && String(subscription.user) !== String(req.user._id)) {
       return res.status(403).json({
         success: false,
         error: "Not authorized to renew this subscription",
-      });
+      })
     }
 
-    const { startDate, endDate, nextRenewalDate } = calculateDates(
-      subscription.plan
-    );
+    const { startDate, endDate, nextRenewalDate } = calculateDates(subscription.plan)
 
-    subscription.startDate = startDate;
-    subscription.endDate = endDate;
-    subscription.nextRenewalDate = nextRenewalDate;
-    subscription.paymentStatus = "paid";
-    subscription.isActive = true;
+    subscription.startDate = startDate
+    subscription.endDate = endDate
+    subscription.nextRenewalDate = nextRenewalDate
+    subscription.paymentStatus = "paid"
+    subscription.isActive = true
 
     subscription.paymentHistory.push({
       amount: subscription.plan.price,
       status: "successful",
       paymentMethod: req.body.paymentMethod || "card",
       transactionId: req.body.transactionId || "",
-    });
+    })
 
-    await subscription.save();
+    await subscription.save()
 
     if (subscription.user) {
       await User.findByIdAndUpdate(subscription.user, {
         membership: subscription.plan.name.toLowerCase(),
         subscriptionStart: startDate,
         subscriptionEnd: endDate,
-      });
+      })
     }
 
-    res.status(200).json({ success: true, data: subscription });
+    res.status(200).json({ success: true, data: subscription })
   } catch (err) {
-    console.error("Renew subscription error:", err);
-    next(err);
+    console.error("Renew subscription error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**
  * @desc    Cancel subscription
@@ -255,52 +284,95 @@ exports.renewSubscription = async (req, res, next) => {
  */
 exports.cancelSubscription = async (req, res, next) => {
   try {
-    const subscription = await Subscription.findById(req.params.id);
+    const subscription = await Subscription.findById(req.params.id)
+
     if (!subscription) {
-      return res
-        .status(404)
-        .json({ success: false, error: "Subscription not found" });
+      return res.status(404).json({ success: false, error: "Subscription not found" })
     }
 
     if (String(subscription.user) !== String(req.user._id)) {
       return res.status(403).json({
         success: false,
         error: "Not authorized to cancel this subscription",
-      });
+      })
     }
 
-    subscription.isActive = false;
-    subscription.paymentStatus = "cancelled";
-    await subscription.save();
+    subscription.isActive = false
+    subscription.paymentStatus = "cancelled"
+    await subscription.save()
 
     res.status(200).json({
       success: true,
       message: "Subscription cancelled successfully",
       data: subscription,
-    });
+    })
   } catch (err) {
-    console.error("Cancel subscription error:", err);
-    next(err);
+    console.error("Cancel subscription error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**
  * @desc    Create a new subscription plan
  * @route   POST /api/subscriptions/plans
  * @access  Private (Admin)
  */
+
 exports.createSubscriptionPlan = async (req, res, next) => {
   try {
-    const plan = await SubscriptionPlan.create(req.body);
+    // Check for validation errors
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      })
+    }
+
+    // Check if plan name already exists
+    const existingPlan = await SubscriptionPlan.findOne({ name: req.body.name })
+    if (existingPlan) {
+      return res.status(400).json({
+        success: false,
+        error: "Plan with this name already exists",
+      })
+    }
+
+    const plan = await SubscriptionPlan.create(req.body)
+
     res.status(201).json({
       success: true,
       data: plan,
-    });
+    })
   } catch (err) {
-    console.error("Create plan error:", err);
-    next(err);
+    console.error("Create plan error:", err)
+
+    // Handle mongoose validation errors
+    if (err.name === "ValidationError") {
+      const errors = Object.values(err.errors).map((val) => val.message)
+      return res.status(400).json({
+        success: false,
+        error: errors.join(", "),
+      })
+    }
+
+    // Handle duplicate key error
+    if (err.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: "Plan with this name already exists",
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**
  * @desc    Update an existing subscription plan
@@ -309,25 +381,52 @@ exports.createSubscriptionPlan = async (req, res, next) => {
  */
 exports.updateSubscriptionPlan = async (req, res, next) => {
   try {
-    let plan = await SubscriptionPlan.findById(req.params.id);
+    let plan = await SubscriptionPlan.findById(req.params.id)
+
     if (!plan) {
-      return res.status(404).json({ success: false, error: "Plan not found" });
+      return res.status(404).json({ success: false, error: "Plan not found" })
+    }
+
+    // Check if name is being changed and if it conflicts
+    if (req.body.name && req.body.name !== plan.name) {
+      const existingPlan = await SubscriptionPlan.findOne({
+        name: req.body.name,
+        _id: { $ne: req.params.id },
+      })
+      if (existingPlan) {
+        return res.status(400).json({
+          success: false,
+          error: "Plan with this name already exists",
+        })
+      }
     }
 
     plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
-    });
+    })
 
     res.status(200).json({
       success: true,
       data: plan,
-    });
+    })
   } catch (err) {
-    console.error("Update plan error:", err);
-    next(err);
+    console.error("Update plan error:", err)
+
+    if (err.name === "ValidationError") {
+      const errors = Object.values(err.errors).map((val) => val.message)
+      return res.status(400).json({
+        success: false,
+        error: errors.join(", "),
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}
 
 /**
  * @desc    Delete a subscription plan if not in use
@@ -336,31 +435,37 @@ exports.updateSubscriptionPlan = async (req, res, next) => {
  */
 exports.deleteSubscriptionPlan = async (req, res, next) => {
   try {
-    const plan = await SubscriptionPlan.findById(req.params.id);
+    const plan = await SubscriptionPlan.findById(req.params.id)
+
     if (!plan) {
-      return res.status(404).json({ success: false, error: "Plan not found" });
+      return res.status(404).json({ success: false, error: "Plan not found" })
     }
 
     // Prevent deletion if plan is in use
     const activeSubs = await Subscription.countDocuments({
       plan: plan._id,
       isActive: true,
-    });
+    })
+
     if (activeSubs > 0) {
       return res.status(400).json({
         success: false,
         error: `Cannot delete. Plan is used by ${activeSubs} active subscription(s).`,
-      });
+      })
     }
 
-    await plan.deleteOne();
+    await plan.deleteOne()
+
     res.status(200).json({
       success: true,
       message: "Plan deleted successfully",
       data: {},
-    });
+    })
   } catch (err) {
-    console.error("Delete plan error:", err);
-    next(err);
+    console.error("Delete plan error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
   }
-};
+}

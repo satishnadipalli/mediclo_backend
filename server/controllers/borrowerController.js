@@ -1,6 +1,7 @@
 const Borrower = require("../models/Borrower");
 const ToyBorrowing = require("../models/ToyBorrowing");
 const { body, validationResult } = require("express-validator");
+const Toy = require("../models/Toy");
 
 // Validation middleware
 exports.borrowerValidation = [
@@ -348,3 +349,290 @@ exports.getBorrowerStats = async (req, res) => {
     });
   }
 };
+
+
+
+// Toy borrwoer controllers
+
+// Additional APIs needed for Process Return functionality
+// Add these to your existing server.js or create separate route files
+
+// const { body, validationResult } = require("express-validator")
+
+// ============================================
+// PROCESS RETURN ROUTES
+// Add these routes to your server.js or create a new processReturnRoutes.js file
+// ============================================
+
+// @desc    Smart search for borrowers or toys
+// @route   GET /api/process-return/smart-search
+// @access  Private
+exports.smartSearch = async (req, res) => {
+  try {
+    const { search } = req.query
+
+    if (!search || search.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: "Search term must be at least 2 characters",
+      })
+    }
+
+    // Search in active borrowings first
+    const borrowings = await ToyBorrowing.find({
+      returnDate: { $exists: false },
+      $or: [
+        { borrowerName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+      ],
+    })
+      .populate({
+        path: "toyId",
+        select: "name category image",
+      })
+      .populate({
+        path: "toyUnitId",
+        select: "unitNumber condition",
+      })
+      .sort({ dueDate: 1 })
+
+    if (borrowings.length > 0) {
+      // Group by borrower email
+      const borrowerGroups = {}
+      borrowings.forEach((borrowing) => {
+        const email = borrowing.email
+        if (!borrowerGroups[email]) {
+          borrowerGroups[email] = {
+            borrowerInfo: {
+              borrowerName: borrowing.borrowerName,
+              email: borrowing.email,
+              phone: borrowing.phone,
+              relationship: borrowing.relationship,
+            },
+            activeBorrowings: [],
+          }
+        }
+        borrowerGroups[email].activeBorrowings.push(borrowing)
+      })
+
+      const borrowerResults = Object.values(borrowerGroups)
+
+      return res.status(200).json({
+        success: true,
+        type: "borrower",
+        data: borrowerResults[0], // Return most relevant borrower
+      })
+    }
+
+    // If no borrower found, search for toys
+    const toys = await Toy.find({
+      $or: [{ name: { $regex: search, $options: "i" } }, { category: { $regex: search, $options: "i" } }],
+    }).select("name category image description")
+
+    if (toys.length > 0) {
+      const toy = toys[0]
+
+      // Get active borrowings for this toy
+      const toyBorrowings = await ToyBorrowing.find({
+        toyId: toy._id,
+        returnDate: { $exists: false },
+      })
+        .populate({
+          path: "toyId",
+          select: "name category image",
+        })
+        .populate({
+          path: "toyUnitId",
+          select: "unitNumber condition",
+        })
+        .sort({ dueDate: 1 })
+
+      return res.status(200).json({
+        success: true,
+        type: "toy",
+        data: {
+          toyInfo: toy,
+          activeBorrowings: toyBorrowings,
+        },
+      })
+    }
+
+    // No results found
+    res.status(404).json({
+      success: false,
+      error: "No active borrowings found for this search",
+    })
+  } catch (err) {
+    console.error("Smart search error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+// @desc    Process multiple returns at once
+// @route   POST /api/process-return/process-multiple
+// @access  Private
+exports.processMultipleReturns = async (req, res) => {
+  try {
+    // Validation
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      })
+    }
+
+    const { borrowingIds, conditionOnReturn, notes, returnDate } = req.body
+
+    if (!borrowingIds || !Array.isArray(borrowingIds) || borrowingIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide at least one borrowing ID",
+      })
+    }
+
+    if (!conditionOnReturn) {
+      return res.status(400).json({
+        success: false,
+        error: "Condition on return is required",
+      })
+    }
+
+    const validConditions = ["Excellent", "Good", "Fair", "Needs Repair", "Damaged"]
+    if (!validConditions.includes(conditionOnReturn)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid condition value",
+      })
+    }
+
+    const processedReturns = []
+    const errors_list = []
+
+    // Process each return
+    for (const borrowingId of borrowingIds) {
+      try {
+        // Get the borrowing record
+        const borrowing = await ToyBorrowing.findById(borrowingId)
+        if (!borrowing) {
+          errors_list.push(`Borrowing ${borrowingId} not found`)
+          continue
+        }
+
+        // Check if already returned
+        if (borrowing.returnDate) {
+          errors_list.push(`Borrowing ${borrowingId} has already been returned`)
+          continue
+        }
+
+        // Update borrowing record
+        borrowing.returnDate = returnDate ? new Date(returnDate) : new Date()
+        borrowing.status = "Returned"
+        borrowing.conditionOnReturn = conditionOnReturn
+        borrowing.notes = notes
+          ? `${borrowing.notes ? borrowing.notes + ". " : ""}Return notes: ${notes}`
+          : borrowing.notes
+        borrowing.returnProcessedBy = req.user ? req.user._id : null
+
+        await borrowing.save()
+
+        // Update toy unit availability
+        const toyUnit = await ToyUnit.findById(borrowing.toyUnitId)
+        if (toyUnit) {
+          toyUnit.isAvailable = true
+          toyUnit.condition = conditionOnReturn
+          toyUnit.currentBorrower = null
+          await toyUnit.save()
+        }
+
+        // Update toy's available units count
+        const toy = await Toy.findById(borrowing.toyId)
+        if (toy && toy.updateAvailableUnits) {
+          await toy.updateAvailableUnits()
+        }
+
+        processedReturns.push({
+          borrowingId: borrowing._id,
+          toyName: toy ? toy.name : "Unknown",
+          borrowerName: borrowing.borrowerName,
+          status: "success",
+        })
+      } catch (error) {
+        console.error(`Error processing return for ${borrowingId}:`, error)
+        errors_list.push(`Failed to process return for ${borrowingId}: ${error.message}`)
+      }
+    }
+
+    // Return results
+    const response = {
+      success: processedReturns.length > 0,
+      processedCount: processedReturns.length,
+      totalCount: borrowingIds.length,
+      processedReturns,
+    }
+
+    if (errors_list.length > 0) {
+      response.errors = errors_list
+    }
+
+    if (processedReturns.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No returns were processed successfully",
+        errors: errors_list,
+      })
+    }
+
+    res.status(200).json(response)
+  } catch (err) {
+    console.error("Process multiple returns error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+// Validation middleware for bulk processing
+exports.processReturnValidation = [
+  body("borrowingIds").isArray({ min: 1 }).withMessage("At least one borrowing ID is required"),
+  body("conditionOnReturn")
+    .notEmpty()
+    .withMessage("Condition on return is required")
+    .isIn(["Excellent", "Good", "Fair", "Needs Repair", "Damaged"])
+    .withMessage("Invalid condition"),
+  body("notes").optional().trim(),
+  body("returnDate").optional().isISO8601().withMessage("Invalid date format"),
+]
+
+// ============================================
+// ROUTES SETUP
+// Add these routes to your Express app
+// ============================================
+
+// If you're adding to server.js directly:
+/*
+app.get('/api/process-return/smart-search', protect, authorize('admin', 'staff'), smartSearch);
+app.post('/api/process-return/process-multiple', protect, authorize('admin', 'staff'), processReturnValidation, processMultipleReturns);
+*/
+
+// If you're creating a separate route file (recommended):
+/*
+const express = require('express');
+const router = express.Router();
+const { protect, authorize } = require('../middleware/authMiddleware');
+
+router.get('/smart-search', protect, authorize('admin', 'staff'), smartSearch);
+router.post('/process-multiple', protect, authorize('admin', 'staff'), processReturnValidation, processMultipleReturns);
+
+module.exports = router;
+
+// Then in server.js:
+app.use('/api/process-return', require('./routes/processReturnRoutes'));
+*/
+
+// Export functions if using separate files

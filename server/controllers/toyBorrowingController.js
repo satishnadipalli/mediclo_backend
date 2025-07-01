@@ -50,9 +50,11 @@ exports.returnToyValidation = [
 // @route   GET /api/toys/borrowings
 // @access  Private
 exports.getActiveBorrowings = async (req, res) => {
+  console.log("HI")
   try {
     const query = { returnDate: { $exists: false } };
 
+    console.log("Hello")
     // Add search by borrower name or email
     if (req.query.search) {
       query.$or = [
@@ -84,9 +86,10 @@ exports.getActiveBorrowings = async (req, res) => {
       data: borrowings,
     });
   } catch (err) {
+    console.log(err)
     res.status(500).json({
       success: false,
-      error: "Server Error",
+      error: "Server from Error",
     });
   }
 };
@@ -96,6 +99,7 @@ exports.getActiveBorrowings = async (req, res) => {
 // @access  Private
 exports.getBorrowing = async (req, res) => {
   try {
+    console.log("Getting borrowing for ID:", req.params.id)
     const borrowing = await ToyBorrowing.findById(req.params.id)
       .populate({
         path: "toyId",
@@ -112,26 +116,26 @@ exports.getBorrowing = async (req, res) => {
       .populate({
         path: "returnProcessedBy",
         select: "firstName lastName",
-      });
+      })
 
     if (!borrowing) {
       return res.status(404).json({
         success: false,
         error: "Borrowing record not found",
-      });
+      })
     }
 
     res.status(200).json({
       success: true,
       data: borrowing,
-    });
+    })
   } catch (err) {
     res.status(500).json({
       success: false,
       error: "Server Error",
-    });
+    })
   }
-};
+}
 
 // @desc    Issue a toy (create borrowing)
 // @route   POST /api/toys/borrowings
@@ -365,30 +369,22 @@ exports.getBorrowerHistory = async (req, res) => {
 // @access  Private
 exports.getAvailableToyUnits = async (req, res) => {
   try {
-    const toy = await Toy.findById(req.params.id);
-    if (!toy) {
-      return res.status(404).json({
-        success: false,
-        error: "Toy not found",
-      });
-    }
+    const { toyId } = req.params
 
-    // Find available units
     const availableUnits = await ToyUnit.find({
-      toyId: toy._id,
+      toyId: toyId,
       isAvailable: true,
-    }).sort({ unitNumber: 1 });
+    }).select("unitNumber condition")
 
-    res.status(200).json({
+    res.json({
       success: true,
-      count: availableUnits.length,
       data: availableUnits,
-    });
-  } catch (err) {
+    })
+  } catch (error) {
     res.status(500).json({
       success: false,
-      error: "Server Error",
-    });
+      error: error.message,
+    })
   }
 };
 

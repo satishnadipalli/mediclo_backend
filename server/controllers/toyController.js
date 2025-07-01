@@ -1,3 +1,6 @@
+
+
+
 const Toy = require("../models/Toy");
 const ToyUnit = require("../models/ToyUnit");
 const ToyBorrowing = require("../models/ToyBorrowing");
@@ -324,21 +327,22 @@ exports.addToyUnit = async (req, res) => {
 // @access  Private
 exports.updateToyUnit = async (req, res) => {
   try {
-    const errors = validationResult(req);
+    const errors = validationResult(req)
+
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
         errors: errors.array(),
-      });
+      })
     }
 
-    const toyUnit = await ToyUnit.findById(req.params.id);
+    const toyUnit = await ToyUnit.findById(req.params.id)
 
     if (!toyUnit) {
       return res.status(404).json({
         success: false,
         error: "Toy unit not found",
-      });
+      })
     }
 
     // Check if it's currently borrowed
@@ -346,31 +350,59 @@ exports.updateToyUnit = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Cannot update condition of a borrowed toy unit",
-      });
+      })
+    }
+
+    // Check for unit number conflicts if unit number is being updated
+    if (req.body.unitNumber && req.body.unitNumber !== toyUnit.unitNumber) {
+      const existingUnit = await ToyUnit.findOne({
+        toyId: toyUnit.toyId,
+        unitNumber: req.body.unitNumber,
+        _id: { $ne: req.params.id }, // Exclude current unit
+      })
+
+      if (existingUnit) {
+        return res.status(400).json({
+          success: false,
+          error: `Unit number ${req.body.unitNumber} already exists for this toy`,
+        })
+      }
     }
 
     // Update fields
+    if (req.body.unitNumber) {
+      toyUnit.unitNumber = req.body.unitNumber
+    }
+
     if (req.body.condition) {
-      toyUnit.condition = req.body.condition;
+      toyUnit.condition = req.body.condition
     }
 
-    if (req.body.notes) {
-      toyUnit.notes = req.body.notes;
+    if (req.body.notes !== undefined) {
+      // Allow empty string
+      toyUnit.notes = req.body.notes
     }
 
-    await toyUnit.save();
+    // Update timestamp
+    toyUnit.updatedAt = new Date()
+
+    await toyUnit.save()
+
+    // Populate toy details for response
+    await toyUnit.populate("toyId", "name category")
 
     res.status(200).json({
       success: true,
       data: toyUnit,
-    });
+    })
   } catch (err) {
+    console.error("Update toy unit error:", err)
     res.status(500).json({
       success: false,
       error: "Server Error",
-    });
+    })
   }
-};
+}
 
 // @desc    Delete toy unit
 // @route   DELETE /api/toys/units/:id
@@ -484,3 +516,95 @@ exports.getCategories = async (req, res) => {
     });
   }
 };
+
+
+
+
+// @desc    Get all units for a specific toy
+// @route   GET /api/toys/:toyId/units
+// @access  Private
+exports.getToyUnits = async (req, res) => {
+  try {
+    const { toyId } = req.params
+
+    // Check if toy exists
+    const toy = await Toy.findById(toyId)
+    if (!toy) {
+      return res.status(404).json({
+        success: false,
+        error: "Toy not found",
+      })
+    }
+
+    // Get all units for this toy
+    const units = await ToyUnit.find({ toyId }).sort({ unitNumber: 1 })
+
+    res.status(200).json({
+      success: true,
+      count: units.length,
+      data: units,
+    })
+  } catch (err) {
+    console.error("Get toy units error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+// @desc    Get unit by ID
+// @route   GET /api/toys/units/:id
+// @access  Private
+exports.getToyUnit = async (req, res) => {
+  try {
+    const unit = await ToyUnit.findById(req.params.id).populate("toyId", "name category")
+
+    if (!unit) {
+      return res.status(404).json({
+        success: false,
+        error: "Unit not found",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      data: unit,
+    })
+  } catch (err) {
+    console.error("Get toy unit error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+
+exports.toySearch = async (req, res) => {
+  try {
+    const { search } = req.query
+
+    const query = {}
+    if (search) {
+      query.$or = [{ name: { $regex: search, $options: "i" } }, { category: { $regex: search, $options: "i" } }]
+    }
+
+    const toys = await Toy.find(query)
+      .select("name category availableUnits image")
+      .where("availableUnits")
+      .gt(0)
+      .limit(10)
+
+    res.json({
+      success: true,
+      data: toys,
+    })
+  } catch (error) {
+    // console.log(error)
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}

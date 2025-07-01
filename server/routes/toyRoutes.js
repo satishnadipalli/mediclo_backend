@@ -1,3 +1,4 @@
+
 const express = require("express");
 const router = express.Router();
 const { protect, authorize } = require("../middleware/authMiddleware");
@@ -14,6 +15,8 @@ const {
   deleteToyUnit,
   getToyBorrowingHistory,
   getCategories,
+  getToyUnits,
+  getToyUnit,
 } = require("../controllers/toyController");
 
 const {
@@ -70,9 +73,10 @@ router
 
 // Borrowing routes - admin/staff only
 router
-  .route("/borrowings")
-  .get(protect, authorize("admin", "staff"), getActiveBorrowings)
+  .route("/borrowings",getActiveBorrowings)
   .post(protect, authorize("admin", "staff"), borrowToyValidation, issueToy);
+
+router.get("/hi", async(req,res)=>{return "Hello"})
 
 router.get(
   "/borrowings/overdue",
@@ -86,6 +90,7 @@ router.get(
   authorize("admin", "staff"),
   getBorrowing
 );
+
 router.put(
   "/borrowings/:id/return",
   protect,
@@ -113,5 +118,11 @@ router.put(
   authorize("admin", "staff"),
   manualOverdueUpdate
 );
+
+
+
+router.get("/:toyId/units", protect, authorize("admin", "staff"), getToyUnits)
+
+router.get("/units/:id", protect, authorize("admin", "staff"), getToyUnit)
 
 module.exports = router;
