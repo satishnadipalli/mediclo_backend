@@ -499,3 +499,100 @@ exports.deleteSubscriptionPlan = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * @desc    Get all members who have bought membership
+ * @route   GET /api/subscriptions/members
+ * @access  Admin
+ */
+exports.getAllSubscribers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const keyword = req.query.search?.trim();
+    const searchQuery = keyword
+      ? {
+          $or: [
+            { name: new RegExp(keyword, "i") },
+            { email: new RegExp(keyword, "i") },
+          ],
+        }
+      : {};
+
+    const query = {
+      ...searchQuery,
+      isActive: true,
+    };
+
+    const total = await Subscription.countDocuments(query);
+
+    const subscriptions = await Subscription.find(query)
+      .populate("user", "firstName, lastName, email")
+      .populate("plan", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const data = subscriptions.map((sub) => ({
+      id: sub._id,
+      memberName: sub.name,
+      email: sub.user?.email,
+      tier: sub.currentTier,
+      status: sub.isActive ? "Active" : "Cancelled",
+      renewalDate: sub.nextRenewalDate,
+    }));
+    res.status(200).json({
+      success: true,
+      count: data.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data,
+    });
+  } catch (error) {
+    console.error("Fetch members error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
+  }
+};
+
+/**
+ * @desc    Get Subscriber Details (For View Button)
+ * @route   GET /api/subscriptions/members/:id
+ * @access  Admin
+ */
+exports.getSubscriberDetails = async (req, res) => {
+  try {
+    const subscription = await Subscription.findById(req.params.id)
+      .populate("user", "-password")
+      .populate("plan");
+
+    if (!subscription) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Subscription not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: subscription._id,
+        memberName: subscription.user?.name,
+        email: subscription.user?.email,
+        phone: subscription.user?.phone,
+        tier: subscription.currentTier,
+        plan: subscription.plan?.name,
+        price: subscription.plan?.price,
+        status: subscription.isActive ? "Active" : "Cancelled",
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        nextRenewalDate: subscription.nextRenewalDate,
+        paymentHistory: subscription.paymentHistory,
+      },
+    });
+  } catch (error) {
+    console.error("Get subscriber details error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
+  }
+};
