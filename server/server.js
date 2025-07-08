@@ -138,9 +138,10 @@ app.use("/api/diseases", diseaseRoutes);
 //shipping routes for admin dash
 app.use("/api/shipping", shippingRoutes);
 app.use("/api",ToymanagementRoutes)
+
 // Root route
 app.get("/", (req, res) => {
-  res.send("API is running...");
+  res.send("Backend Server was stated and successfully running...");
 });
 
 // Error handler
