@@ -14,13 +14,6 @@ const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
 const startOverdueUpdateJob = require("./utils/cronJob");
 
-
-
-const Toy = require("./models/Toy") // Import Toy model
-const Borrowing = require("./models/ToyBorrowing") // Import Borrowing model
-const ToyUnit = require("./models/ToyUnit") // Import ToyUnit model
-
-
 // Import routes
 const productRoutes = require("./routes/productRoutes");
 const authRoutes = require("./routes/authRoutes");
@@ -51,8 +44,14 @@ const galleryRoutes = require("./routes/galleryRoutes");
 const diseaseRoutes = require("./routes/diseaseRoutes");
 //Add shipping-routes
 const shippingRoutes = require("./routes/orderRoutes");
-const { smartSearch, processMultipleReturns, processReturnValidation } = require("./controllers/borrowerController");
+const {
+  smartSearch,
+  processMultipleReturns,
+  processReturnValidation,
+} = require("./controllers/borrowerController");
 const { protect, authorize } = require("./middleware/authMiddleware");
+//email
+const emailRoutes = require("./routes/emailRoutes");
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -137,7 +136,10 @@ app.use("/api/gallery", galleryRoutes);
 app.use("/api/diseases", diseaseRoutes);
 //shipping routes for admin dash
 app.use("/api/shipping", shippingRoutes);
-app.use("/api",ToymanagementRoutes)
+app.use("/api", ToymanagementRoutes);
+//email route
+app.use("/api/email", emailRoutes);
+
 // Root route
 app.get("/", (req, res) => {
   res.send("API is running...");
@@ -160,11 +162,6 @@ process.on("unhandledRejection", (err, promise) => {
   server.close(() => process.exit(1));
 });
 
-
-
-
-
-
 // app.get("/api/process-return/smart-search", protect, authorize("admin", "staff"), smartSearch)
 // app.post(
 //   "/api/process-return/process-multiple",
@@ -175,7 +172,6 @@ process.on("unhandledRejection", (err, promise) => {
 // )
 
 // app.get("/hi", async(req,res)=>{return res.status(200).json({"Hello":"hi"})})
-
 
 // // these are sample api routes added in the server file thesse will be distrubeed after
 // // Dashboard API Routes - Add these to your Express backend
@@ -362,8 +358,6 @@ process.on("unhandledRejection", (err, promise) => {
 //   }
 // })
 
-
-
 // // GET /api/toys/search-available - Search available toys for issuing
 // app.get("/api/search-available", async (req, res) => {
 //   try {
@@ -460,8 +454,6 @@ process.on("unhandledRejection", (err, promise) => {
 //     })
 //   }
 // })
-
-
 
 // // GET /api/borrowers - Get all borrowers with their current borrowings
 // app.get("/api/borrowers", async (req, res) => {
@@ -711,8 +703,6 @@ process.on("unhandledRejection", (err, promise) => {
 // })
 
 // // GET /api/toys/:toyId/details - Get detailed toy information
-
-
 
 // app.get("/api/borrowerss/:borrowerId", async (req, res) => {
 //   try {
