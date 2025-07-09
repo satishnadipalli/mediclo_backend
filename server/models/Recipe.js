@@ -7,6 +7,11 @@ const RecipeSchema = new mongoose.Schema(
       required: [true, "Please add a title"],
       trim: true,
     },
+    description: {
+      type: String,
+      required: [true, "Please add description"],
+      trim: true,
+    },
     category: {
       type: String,
       enum: ["Breakfast", "Lunch", "Dinner", "Dessert", "Snack"],
@@ -28,14 +33,18 @@ const RecipeSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Please add servings"],
     },
-    ingredients: [{
-      type: String,
-      required: true,
-    }],
-    instructions: [{
-      type: String,
-      required: true,
-    }],
+    ingredients: [
+      {
+        type: String,
+        required: true,
+      },
+    ],
+    instructions: [
+      {
+        type: String,
+        required: true,
+      },
+    ],
     nutritionFacts: {
       calories: { type: Number, default: 0 },
       protein: { type: Number, default: 0 },
@@ -51,9 +60,11 @@ const RecipeSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    tags: [{
-      type: String,
-    }],
+    tags: [
+      {
+        type: String,
+      },
+    ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

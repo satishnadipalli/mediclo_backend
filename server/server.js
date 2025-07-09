@@ -52,6 +52,10 @@ const {
 const { protect, authorize } = require("./middleware/authMiddleware");
 //email
 const emailRoutes = require("./routes/emailRoutes");
+//recipe
+const recipeRoutes = require("./routes/recipeRoutes");
+//workshop
+const workshopRoutes = require("./routes/workshopRoutes");
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -139,6 +143,9 @@ app.use("/api/shipping", shippingRoutes);
 app.use("/api", ToymanagementRoutes);
 //email route
 app.use("/api/email", emailRoutes);
+//recipe and workshop
+app.use("/api/recipes", recipeRoutes);
+app.use("/api/workshops", workshopRoutes);
 
 // Root route
 app.get("/", (req, res) => {
@@ -171,7 +178,7 @@ process.on("unhandledRejection", (err, promise) => {
 //   processMultipleReturns,
 // )
 
-  // UserDashboard :
+// UserDashboard :
 
 // // these are sample api routes added in the server file thesse will be distrubeed after
 // // Dashboard API Routes - Add these to your Express backend
