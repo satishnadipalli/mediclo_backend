@@ -187,3 +187,49 @@ exports.deactivateUser = async (req, res, next) => {
     next(err);
   }
 };
+
+// @desc    Get personalized dashboard content for user
+// @route   GET /api/users/dashboard
+// @access  Private
+exports.getUserDashboard = async (req, res, next) => {
+  try {
+    const isSubscribed =
+      req.user?.subscriptionEnd &&
+      new Date(req.user.subscriptionEnd) > new Date();
+
+    let dashboardData = {
+      isSubscribed,
+      user: {
+        name: req.user.fullName,
+        email: req.user.email,
+        role: req.user.role,
+        membership: req.user.membership,
+      },
+    };
+
+    if (isSubscribed) {
+      const [recipes, workshops, webinars] = await Promise.all([
+        require("../models/Recipe").find().sort("-createdAt"),
+        require("../models/Workshop").find().sort("-createdAt"),
+        require("../models/Webinar").find().sort("-date"),
+      ]);
+
+      dashboardData.recipes = recipes;
+      dashboardData.workshops = workshops;
+      dashboardData.webinars = webinars;
+    } else {
+      const webinars = await require("../models/Webinar")
+        .find({
+          status: "upcoming",
+          date: { $gte: new Date() },
+        })
+        .sort("date");
+
+      dashboardData.webinars = webinars;
+    }
+
+    res.status(200).json({ success: true, data: dashboardData });
+  } catch (err) {
+    next(err);
+  }
+};

@@ -9,6 +9,7 @@ const {
   getUsersByRole,
   activateUser,
   deactivateUser,
+  getUserDashboard,
 } = require("../controllers/userController");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { validateRequest } = require("../middleware/validationMiddleware");
@@ -18,6 +19,7 @@ const router = express.Router();
 
 // All routes are protected and require admin access
 router.use(protect);
+router.get("/dashboard", getUserDashboard); //dashboard data for subscribed user
 router.use(authorize("admin"));
 
 // GET /api/users - Get all users
@@ -40,5 +42,7 @@ router.route("/:id/activate").put(activateUser);
 
 // PUT /api/users/:id/deactivate - Deactivate a user account
 router.route("/:id/deactivate").put(deactivateUser);
+
+//Get Recipes
 
 module.exports = router;
