@@ -1,5 +1,8 @@
 const User = require("../models/User");
 const { check, validationResult } = require("express-validator");
+const Recipe = require("../models/Recipe");
+const Workshop = require("../models/Workshop");
+const Webinar = require("../models/Webinar");
 
 // Validation rules
 exports.updateUserValidation = [
@@ -197,38 +200,38 @@ exports.getUserDashboard = async (req, res, next) => {
       req.user?.subscriptionEnd &&
       new Date(req.user.subscriptionEnd) > new Date();
 
-    let dashboardData = {
-      isSubscribed,
-      user: {
-        name: req.user.fullName,
-        email: req.user.email,
-        role: req.user.role,
-        membership: req.user.membership,
-      },
+    const userData = {
+      name: req.user.fullName,
+      email: req.user.email,
+      role: req.user.role,
+      membership: req.user.membership || null,
     };
 
+    let recipes = [];
+    let workshops = [];
+
     if (isSubscribed) {
-      const [recipes, workshops, webinars] = await Promise.all([
-        require("../models/Recipe").find().sort("-createdAt"),
-        require("../models/Workshop").find().sort("-createdAt"),
-        require("../models/Webinar").find().sort("-date"),
-      ]);
+      recipes = await Recipe.find().sort({ createdAt: -1 }).limit(4);
 
-      dashboardData.recipes = recipes;
-      dashboardData.workshops = workshops;
-      dashboardData.webinars = webinars;
-    } else {
-      const webinars = await require("../models/Webinar")
-        .find({
-          status: "upcoming",
-          date: { $gte: new Date() },
-        })
-        .sort("date");
-
-      dashboardData.webinars = webinars;
+      workshops = await Workshop.find().sort({ createdAt: -1 }).limit(4);
     }
 
-    res.status(200).json({ success: true, data: dashboardData });
+    const webinars = await Webinar.find(
+      isSubscribed ? {} : { status: "upcoming" }
+    )
+      .sort({ date: -1 })
+      .limit(4);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isSubscribed,
+        user: userData,
+        recipes,
+        workshops,
+        webinars,
+      },
+    });
   } catch (err) {
     next(err);
   }
