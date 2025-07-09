@@ -70,7 +70,7 @@ exports.validatePublicRegistration = [
     .withMessage("Email is required")
     .isEmail()
     .withMessage("Please provide a valid email address"),
-  body("phone").optional()
+  body("phone").optional(),
 ];
 
 // @desc    Get all webinars
@@ -301,7 +301,7 @@ exports.getAllWebinarRegistrations = async (req, res, next) => {
   try {
     const registrations = await WebinarRegistration.find()
       .sort({ createdAt: -1 })
-      .populate('webinarId', 'title date'); // Optional: populate webinar details
+      .populate("webinarId", "title date"); // Optional: populate webinar details
 
     res.status(200).json({
       success: true,
@@ -346,12 +346,15 @@ exports.getWebinarRegistrations = async (req, res, next) => {
 exports.getWebinarRegistration = async (req, res, next) => {
   try {
     const registration = await WebinarRegistration.findById(req.params.id)
-      .populate('webinarId', 'title date') // Optional: Include webinar details
-      .populate('userId', 'name email');   // Optional: Include user details
+      .populate("webinarId", "title date") // Optional: Include webinar details
+      .populate("userId", "name email"); // Optional: Include user details
 
     if (!registration) {
       return next(
-        new ErrorResponse(`Registration not found with id of ${req.params.id}`, 404)
+        new ErrorResponse(
+          `Registration not found with id of ${req.params.id}`,
+          404
+        )
       );
     }
 
@@ -467,7 +470,6 @@ exports.markAttendance = async (req, res, next) => {
   }
 };
 
-
 // @desc    Delete a webinar registration
 // @route   DELETE /api/webinars/:webinarId/registrations/:id
 // @access  Private/Admin
@@ -498,6 +500,67 @@ exports.deleteWebinarRegistration = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Registration removed successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get webinars (Subscribed Users)
+// @route   GET /api/webinars/user
+// @access  Private/Subscribed User
+exports.getUserWebinars = async (req, res, next) => {
+  try {
+    const isSubscribed =
+      req.user.subscriptionEnd &&
+      new Date(req.user.subscriptionEnd) > new Date();
+
+    if (!isSubscribed) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only for subscribed users.",
+      });
+    }
+
+    const webinars = await Webinar.find().sort("-date");
+
+    res.status(200).json({
+      success: true,
+      count: webinars.length,
+      data: webinars,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get single webinar (for subscribed users)
+// @route   GET /api/webinars/user-webinars/:id
+// @access  Private/Subscribed User
+exports.getSingleUserWebinar = async (req, res, next) => {
+  try {
+    const isSubscribed =
+      req.user.subscriptionEnd &&
+      new Date(req.user.subscriptionEnd) > new Date();
+
+    if (!isSubscribed) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only for subscribed users.",
+      });
+    }
+
+    const webinar = await Webinar.findById(req.params.id);
+    if (!webinar) {
+      return res.status(404).json({
+        success: false,
+        message: "Webinar not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: webinar,
     });
   } catch (err) {
     next(err);

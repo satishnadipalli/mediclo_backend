@@ -16,12 +16,18 @@ const {
   validateWebinarStatus,
   deleteWebinarRegistration,
   getAllWebinarRegistrations,
+  getUserWebinars,
+  getSingleUserWebinar,
 } = require("../controllers/webinarController");
 
 const router = express.Router();
 
 const { protect, authorize } = require("../middleware/authMiddleware");
 const { validateRequest } = require("../middleware/validationMiddleware");
+
+//SUBSCRIBED USERS ROUTE
+router.get("/user-webinars", protect, getUserWebinars);
+router.get("/user-webinars/:id", protect, getSingleUserWebinar);
 
 // Public routes
 router.get("/", getWebinars);
