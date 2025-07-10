@@ -49,13 +49,15 @@ const {
   processMultipleReturns,
   processReturnValidation,
 } = require("./controllers/borrowerController");
-const { protect, authorize } = require("./middleware/authMiddleware");
+
 //email
 const emailRoutes = require("./routes/emailRoutes");
 //recipe
 const recipeRoutes = require("./routes/recipeRoutes");
 //workshop
 const workshopRoutes = require("./routes/workshopRoutes");
+//adminRoutes
+const adminRoutes = require("./routes/adminRoutes");
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -142,10 +144,12 @@ app.use("/api/diseases", diseaseRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api", ToymanagementRoutes);
 //email route
-app.use("/api/email", emailRoutes);
+app.use("/api/emails", emailRoutes);
 //recipe and workshop
 app.use("/api/recipes", recipeRoutes);
 app.use("/api/workshops", workshopRoutes);
+//admin routes
+app.use("/api/admin", adminRoutes);
 
 // Root route
 app.get("/", (req, res) => {

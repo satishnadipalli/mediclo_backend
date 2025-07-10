@@ -3,6 +3,17 @@ const router = express.Router();
 const sendEmail = require("../utils/mailer");
 const membershipReminder = require("../emails/membershipReminder");
 const weeklyMotivation = require("../emails/weeklyMotivation");
+const {
+  getRecentEmails,
+  getAllEmails,
+  getSingleEmail,
+} = require("../controllers/emailController");
+const { protect } = require("../middleware/authMiddleware");
+
+//Subscribed User
+router.get("/recent", protect, getRecentEmails);
+router.get("/", protect, getAllEmails);
+router.get("/:id", protect, getSingleEmail);
 
 //membership reminder
 router.post("/send-renewal", async (req, res) => {

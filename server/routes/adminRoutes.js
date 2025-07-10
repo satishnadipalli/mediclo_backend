@@ -1,17 +1,35 @@
 const express = require("express");
 const router = express.Router();
+const auth = require("../middleware/authMiddleware");
 
-const sendMotivationalQuote = require("../controllers/emailControllers");
-const {
-  createRecipe,
-  createRecipeValidation,
-} = require("../controllers/recipeController");
+const emailController = require("../controllers/emailController");
+const recipeController = require("../controllers/recipeController");
+const workshopController = require("../controllers/workshopController");
 
-const {
-  createWorkshop,
-  createWorkshopValidation,
-} = require("../controllers/workshopController");
+const isAdmin = [auth.protect, auth.authorize("admin")];
 
-router.post("/email/motivation", sendMotivationalQuote);
-router.post("/recipes", isAdmin, createRecipeValidation, createRecipe);
-router.post("/workshops", isAdmin, createWorkshopValidation, createWorkshop);
+//send motivational email
+router.post(
+  "/email/motivation",
+  isAdmin,
+  emailController.motivationEmailValidation,
+  emailController.sendMotivationalQuote
+);
+
+// create-new-recipe
+router.post(
+  "/create-recipes",
+  isAdmin,
+  recipeController.validateRecipe,
+  recipeController.createRecipe
+);
+
+// create-new-workshop
+router.post(
+  "/create-workshops",
+  isAdmin,
+  workshopController.validateWorkshop,
+  workshopController.createWorkshop
+);
+
+module.exports = router;

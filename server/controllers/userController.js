@@ -3,6 +3,7 @@ const { check, validationResult } = require("express-validator");
 const Recipe = require("../models/Recipe");
 const Workshop = require("../models/Workshop");
 const Webinar = require("../models/Webinar");
+const Email = require("../models/Email");
 
 // Validation rules
 exports.updateUserValidation = [
@@ -222,6 +223,15 @@ exports.getUserDashboard = async (req, res, next) => {
       .sort({ date: -1 })
       .limit(4);
 
+    // Get latest 3 motivational emails for the user
+    const emails = await Email.find({
+      userId: req.user._id,
+      category: "motivation",
+    })
+      .sort({ createdAt: -1 })
+      .limit(3)
+      .select("subject content createdAt");
+
     res.status(200).json({
       success: true,
       data: {
@@ -230,6 +240,7 @@ exports.getUserDashboard = async (req, res, next) => {
         recipes,
         workshops,
         webinars,
+        emails,
       },
     });
   } catch (err) {
