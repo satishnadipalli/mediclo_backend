@@ -3,6 +3,7 @@ const User = require("../models/User");
 const Email = require("../models/Email");
 const sendEmail = require("../utils/mailer");
 // const weeklyMotivation = require("../emails/weeklyMotivation");
+const membershipReminder = require("../emails/membershipReminder");
 
 // Validation
 exports.motivationEmailValidation = [
@@ -153,6 +154,40 @@ exports.getRecentEmails = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: emails,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Send renewal reminder to a specific user
+// @route   POST /api/emails/send-renewal/:userId
+// @access  Private/Admin
+exports.sendRenewalReminder = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.userId);
+
+    if (!user || !user.subscriptionEnd) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or subscription end date missing",
+      });
+    }
+
+    await sendEmail({
+      to: user.email,
+      subject: "Your Membership Renewal Reminder",
+      html: membershipReminder(
+        user.firstName || user.fullName || "User",
+        user.subscriptionEnd.toDateString()
+      ),
+    });
+
+    console.log("Email sent:", `<${user.email}>`);
+
+    res.status(200).json({
+      success: true,
+      message: "Renewal email sent successfully",
     });
   } catch (err) {
     next(err);

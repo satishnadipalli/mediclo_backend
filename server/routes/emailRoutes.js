@@ -1,56 +1,24 @@
 const express = require("express");
 const router = express.Router();
-const sendEmail = require("../utils/mailer");
-const membershipReminder = require("../emails/membershipReminder");
-const weeklyMotivation = require("../emails/weeklyMotivation");
+const { protect, authorize } = require("../middleware/authMiddleware");
 const {
   getRecentEmails,
   getAllEmails,
   getSingleEmail,
+  sendRenewalReminder,
 } = require("../controllers/emailController");
-const { protect } = require("../middleware/authMiddleware");
 
 //Subscribed User
 router.get("/recent", protect, getRecentEmails);
 router.get("/", protect, getAllEmails);
 router.get("/:id", protect, getSingleEmail);
 
-//membership reminder
-router.post("/send-renewal", async (req, res) => {
-  const { to, name, renewalDate } = req.body;
-
-  try {
-    await sendEmail({
-      to,
-      subject: `Your Membership Renewal Reminder`,
-      html: membershipReminder(name, renewalDate),
-    });
-
-    res
-      .status(200)
-      .json({ success: true, message: "Renewal email sent successfully " });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-//weekly motivation
-router.post("/send-motivation", async (req, res) => {
-  const { to, name, quote } = req.body;
-
-  try {
-    await sendEmail({
-      to,
-      subject: "Weekly Motivation Just for You!",
-      html: weeklyMotivation(name, quote),
-    });
-
-    res
-      .status(200)
-      .json({ success: true, message: "Motivation email sent successfully!" });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+//Admin: Send subscription renewal reminder to a specific user
+router.post(
+  "/send-renewal/:userId",
+  protect,
+  authorize("admin"),
+  sendRenewalReminder
+);
 
 module.exports = router;
