@@ -207,6 +207,8 @@ exports.getUserDashboard = async (req, res, next) => {
       email: req.user.email,
       role: req.user.role,
       membership: req.user.membership || null,
+      subscriptionStart: req.user.subscriptionStart || null,
+      subscriptionEnd: req.user.subscriptionEnd || null,
     };
 
     let recipes = [];
