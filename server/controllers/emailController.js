@@ -2,7 +2,8 @@ const { check, validationResult } = require("express-validator");
 const User = require("../models/User");
 const Email = require("../models/Email");
 const sendEmail = require("../utils/mailer");
-const weeklyMotivation = require("../emails/weeklyMotivation");
+// const weeklyMotivation = require("../emails/weeklyMotivation");
+const membershipReminder = require("../emails/membershipReminder");
 
 // Validation
 exports.motivationEmailValidation = [
@@ -13,43 +14,51 @@ exports.motivationEmailValidation = [
 // @desc    Send motivational quote to all subscribed users
 // @route   POST /api/admin/email/motivation
 // @access  Private/Admin
+// @desc    Send motivational email to all subscribed users
 exports.sendMotivationalQuote = async (req, res, next) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+    const { subject, content } = req.body;
+
+    if (!subject || !content) {
+      return res
+        .status(400)
+        .json({ success: false, message: "All fields are required" });
     }
 
-    const { subject, content } = req.body;
     const now = new Date();
-
-    const users = await User.find({
-      isActive: true,
+    const subscribedUsers = await User.find({
       subscriptionStart: { $lte: now },
       subscriptionEnd: { $gte: now },
-      email: { $ne: null },
     });
 
-    let count = 0;
-
-    for (const user of users) {
-      const html = weeklyMotivation(user.firstName, content);
-
-      await sendEmail({ to: user.email, subject, html });
-
-      await Email.create({
-        userId: user._id,
-        subject,
-        content,
-        category: "motivation",
+    if (subscribedUsers.length === 0) {
+      return res.status(200).json({
+        success: false,
+        message: "No subscribed users found.",
       });
-
-      count++;
     }
+
+    // Send to all
+    for (const user of subscribedUsers) {
+      await sendEmail({
+        to: user.email,
+        subject,
+        html: `<p>${content}</p>`,
+      });
+      console.log("Email sent:", `<${user.email}>`);
+    }
+
+    // Save only once in DB
+    await Email.create({
+      subject,
+      content,
+      category: "motivation",
+      sentToCount: subscribedUsers.length,
+    });
 
     res.status(200).json({
       success: true,
-      message: `Motivational email sent to ${count} users.`,
+      message: `Motivational email sent to ${subscribedUsers.length} users.`,
     });
   } catch (err) {
     next(err);
@@ -145,6 +154,40 @@ exports.getRecentEmails = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: emails,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Send renewal reminder to a specific user
+// @route   POST /api/emails/send-renewal/:userId
+// @access  Private/Admin
+exports.sendRenewalReminder = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.userId);
+
+    if (!user || !user.subscriptionEnd) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or subscription end date missing",
+      });
+    }
+
+    await sendEmail({
+      to: user.email,
+      subject: "Your Membership Renewal Reminder",
+      html: membershipReminder(
+        user.firstName || user.fullName || "User",
+        user.subscriptionEnd.toDateString()
+      ),
+    });
+
+    console.log("Email sent:", `<${user.email}>`);
+
+    res.status(200).json({
+      success: true,
+      message: "Renewal email sent successfully",
     });
   } catch (err) {
     next(err);

@@ -4,6 +4,9 @@ const Patient = require("../models/Patient");
 const User = require("../models/User");
 const Service = require("../models/Service");
 const { body, validationResult } = require("express-validator");
+const sendEmail = require("../utils/mailer");
+const appointmentConfirmation = require("../emails/appointmentConfirmation"); //email
+const appointmentReschedule = require("../emails/appointmentReschedule"); //email
 
 // =======================
 // VALIDATIONS
@@ -233,8 +236,6 @@ exports.convertRequestToAppointment = async (req, res) => {
 // @access  Private (Admin, Receptionist)
 exports.createAppointment = async (req, res) => {
   const errors = validationResult(req);
-
-  console.log("first place");
   if (!errors.isEmpty())
     return res.status(400).json({ success: false, errors: errors.array() });
 
@@ -259,8 +260,6 @@ exports.createAppointment = async (req, res) => {
       consent,
       totalSessions,
     } = req.body;
-
-    console.log("patient name", patientName);
 
     // Validate service
     const service = await Service.findById(serviceId);
@@ -327,6 +326,26 @@ exports.createAppointment = async (req, res) => {
       assignedAt: new Date(),
     });
 
+    //Send confirmation email
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Your Appointment Confirmation",
+        html: appointmentConfirmation({
+          name: patientName || fatherName || "User",
+          service: service.name,
+          date,
+          startTime,
+          endTime,
+          therapist: therapist.fullName,
+          consultationMode,
+        }),
+      });
+      console.log("Confirmation email sent to:", email);
+    } catch (emailErr) {
+      console.error("Failed to send confirmation email:", emailErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: "Appointment created successfully",
@@ -349,7 +368,7 @@ exports.updateAppointment = async (req, res) => {
   try {
     console.log("Incoming payment update:", req.body.payment);
 
-    // Step 1: Find the appointment
+    // Find the appointment
     let appointment = await Appointment.findById(req.params.id);
     if (!appointment) {
       return res.status(404).json({
@@ -372,7 +391,7 @@ exports.updateAppointment = async (req, res) => {
     }
     */
 
-    // Step 2: Update the appointment's payment info
+    //Update the appointment's payment info
     appointment = await Appointment.findByIdAndUpdate(
       req.params.id,
       {
@@ -386,28 +405,41 @@ exports.updateAppointment = async (req, res) => {
       }
     );
 
-    // Step 3: Fetch all patients
+    // Fetch all patients
     let patients = await Patient.find({}).lean();
 
-    // Step 4: Fetch all appointments for all patients
+    // Fetch all appointments for all patients
     const allAppointments = await Appointment.find({
       patientId: { $in: patients.map((p) => p._id) },
     }).sort({ date: 1 });
 
     const timeOrder = [
-      "09:15 AM", "10:00 AM", "10:45 AM", "11:30 AM", "12:15 PM",
-      "01:00 PM", "01:45 PM", "02:30 PM", "03:15 PM", "04:00 PM",
-      "04:45 PM", "05:30 PM", "06:15 PM", "07:00 PM",
+      "09:15 AM",
+      "10:00 AM",
+      "10:45 AM",
+      "11:30 AM",
+      "12:15 PM",
+      "01:00 PM",
+      "01:45 PM",
+      "02:30 PM",
+      "03:15 PM",
+      "04:00 PM",
+      "04:45 PM",
+      "05:30 PM",
+      "06:15 PM",
+      "07:00 PM",
     ];
 
-    // Step 5: Attach latest appointment & age to each patient
+    //Attach latest appointment & age to each patient
     patients = patients.map((patient) => {
       const relevantAppointments = allAppointments.filter(
         (appt) => appt.patientId.toString() === patient._id.toString()
       );
 
       const future = relevantAppointments.find((a) => a.date > new Date());
-      const past = [...relevantAppointments].reverse().find((a) => a.date <= new Date());
+      const past = [...relevantAppointments]
+        .reverse()
+        .find((a) => a.date <= new Date());
 
       return {
         ...patient,
@@ -425,13 +457,13 @@ exports.updateAppointment = async (req, res) => {
         age: patient.dateOfBirth
           ? Math.floor(
               (new Date() - new Date(patient.dateOfBirth)) /
-              (365.25 * 24 * 60 * 60 * 1000)
+                (365.25 * 24 * 60 * 60 * 1000)
             )
           : null,
       };
     });
 
-    // Step 6: Sort patients by earliest upcoming appointment
+    // Sort patients by earliest upcoming appointment
     patients.sort((a, b) => {
       const aDate = a.latestAppointment?.appointmentDate
         ? new Date(a.latestAppointment.appointmentDate)
@@ -443,8 +475,12 @@ exports.updateAppointment = async (req, res) => {
       if (aDate < bDate) return -1;
       if (aDate > bDate) return 1;
 
-      const aSlotIndex = timeOrder.indexOf(a.latestAppointment?.appointmentSlot || "");
-      const bSlotIndex = timeOrder.indexOf(b.latestAppointment?.appointmentSlot || "");
+      const aSlotIndex = timeOrder.indexOf(
+        a.latestAppointment?.appointmentSlot || ""
+      );
+      const bSlotIndex = timeOrder.indexOf(
+        b.latestAppointment?.appointmentSlot || ""
+      );
 
       return aSlotIndex - bSlotIndex;
     });
@@ -464,7 +500,7 @@ exports.updateAppointment = async (req, res) => {
   }
 };
 
-
+//Update Appointment status
 exports.updateAppointmentStatusAndDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -475,17 +511,17 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
     if (!appointment) {
       return res.status(404).json({
         success: false,
-        message: 'Appointment not found'
+        message: "Appointment not found",
       });
     }
 
     // Special handling for completion
-    if (updates.status === 'completed') {
+    if (updates.status === "completed") {
       // Auto-increment sessionsCompleted if not explicitly provided
       if (updates.sessionsCompleted === undefined) {
         updates.sessionsCompleted = appointment.sessionsCompleted + 1;
       }
-      
+
       // Ensure sessionsCompleted doesn't exceed totalSessions
       if (updates.sessionsCompleted > appointment.totalSessions) {
         updates.sessionsCompleted = appointment.totalSessions;
@@ -495,15 +531,19 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
       if (updates.sessionsPaid === undefined) {
         updates.sessionsPaid = appointment.sessionsPaid + 1;
       }
-      
+
       // Ensure sessionsPaid doesn't exceed totalSessions
       if (updates.sessionsPaid > appointment.totalSessions) {
         updates.sessionsPaid = appointment.totalSessions;
       }
 
       // Auto-update payment status to paid if completing and amount is set
-      if (updates.payment && updates.payment.amount > 0 && !updates.payment.status) {
-        updates.payment.status = 'paid';
+      if (
+        updates.payment &&
+        updates.payment.amount > 0 &&
+        !updates.payment.status
+      ) {
+        updates.payment.status = "paid";
       }
     }
 
@@ -516,31 +556,29 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
         ...(updates.payment && {
           payment: {
             ...appointment.payment,
-            ...updates.payment
-          }
-        })
+            ...updates.payment,
+          },
+        }),
       },
-      { 
-        new: true, 
-        runValidators: true 
+      {
+        new: true,
+        runValidators: true,
       }
-    ).populate('userId patientId therapistId serviceId assignedBy');
+    ).populate("userId patientId therapistId serviceId assignedBy");
 
     res.json({
       success: true,
-      message: 'Appointment updated successfully',
-      data: updatedAppointment
+      message: "Appointment updated successfully",
+      data: updatedAppointment,
     });
-
   } catch (error) {
-    console.error('Error updating appointment:', error);
+    console.error("Error updating appointment:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to update appointment'
+      message: error.message || "Failed to update appointment",
     });
   }
 };
-
 
 // @desc    Delete appointment
 // @route   DELETE /api/appointments/:id
@@ -611,6 +649,32 @@ exports.rescheduleAppointment = async (req, res) => {
     }`;
 
     await appointment.save();
+
+    // Fetch related service and therapist data for email
+    const [service, therapist] = await Promise.all([
+      Service.findById(appointment.serviceId),
+      User.findById(appointment.therapistId),
+    ]);
+
+    // Send reschedule email
+    try {
+      await sendEmail({
+        to: appointment.email,
+        subject: "Your Appointment Has Been Rescheduled",
+        html: appointmentReschedule({
+          name: appointment.patientName || appointment.fatherName || "User",
+          service: service?.name || "Service",
+          date: appointment.date,
+          startTime: appointment.startTime,
+          endTime: appointment.endTime,
+          therapist: therapist?.fullName || "Therapist",
+          reason,
+        }),
+      });
+      console.log("Reschedule email sent to:", appointment.email);
+    } catch (err) {
+      console.error("Failed to send reschedule email:", err.message);
+    }
 
     res.status(200).json({
       success: true,
@@ -739,7 +803,10 @@ exports.getAppointmentsCalendarView = async (req, res) => {
     // Fetch all appointments for the specified date with full population
     const appointments = await Appointment.find(query)
       .populate("therapistId", "firstName lastName email specialization")
-      .populate("patientId", "fullName childName age dateOfBirth childDOB gender childGender")
+      .populate(
+        "patientId",
+        "fullName childName age dateOfBirth childDOB gender childGender"
+      )
       .populate("serviceId", "name price duration")
       .sort({ "therapistId.lastName": 1, startTime: 1 });
 
@@ -786,10 +853,11 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         !calendar[therapistName][startFormatted]
       ) {
         // Extract patient name with fallback logic
-        const patientName = appt.patientName || 
-                           appt.patientId?.fullName || 
-                           appt.patientId?.childName || 
-                           "N/A";
+        const patientName =
+          appt.patientName ||
+          appt.patientId?.fullName ||
+          appt.patientId?.childName ||
+          "N/A";
 
         // Calculate duration
         const duration = calculateDuration(appt.startTime, appt.endTime);
@@ -803,43 +871,45 @@ exports.getAppointmentsCalendarView = async (req, res) => {
           type: appt.type || "initial assessment",
           status: appt.status || "scheduled",
           duration: duration,
-          
+
           // Payment information (required by frontend)
           payment: {
             amount: appt.payment?.amount || 0,
             status: appt.payment?.status || "pending",
-            method: appt.payment?.method || "not_specified"
+            method: appt.payment?.method || "not_specified",
           },
-          
+
           // Session information (required by frontend)
           totalSessions: appt.totalSessions || 0,
           sessionsPaid: appt.sessionsPaid || 0,
           sessionsCompleted: appt.sessionsCompleted || 0,
-          
+
           // Contact information (required by frontend)
           phone: appt.phone || "N/A",
           email: appt.email || "N/A",
-          
+
           // Additional appointment details
           notes: appt.notes || "",
           consultationMode: appt.consultationMode || "in-person",
           fatherName: appt.fatherName || "",
           address: appt.address || "",
-          
+
           // Service information if available
-          serviceInfo: appt.serviceId ? {
-            name: appt.serviceId.name,
-            price: appt.serviceId.price,
-            duration: appt.serviceId.duration
-          } : null,
-          
+          serviceInfo: appt.serviceId
+            ? {
+                name: appt.serviceId.name,
+                price: appt.serviceId.price,
+                duration: appt.serviceId.duration,
+              }
+            : null,
+
           // Timestamps
           createdAt: appt.createdAt,
           updatedAt: appt.updatedAt,
-          
+
           // Additional flags
           consent: appt.consent || false,
-          isDraft: appt.isDraft || false
+          isDraft: appt.isDraft || false,
         };
       }
     });
@@ -855,17 +925,17 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       success: true,
       data: calendar,
       meta: {
-        date: requestedDate || dateStart.toISOString().split('T')[0],
+        date: requestedDate || dateStart.toISOString().split("T")[0],
         totalAppointments: appointments.length,
-        timeSlots: timeSlots
-      }
+        timeSlots: timeSlots,
+      },
     });
   } catch (error) {
     console.error("Calendar fetch error:", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: "Server Error",
-      message: error.message 
+      message: error.message,
     });
   }
 };

@@ -1,11 +1,11 @@
-const mongoose = require("mongoose")
+const mongoose = require("mongoose");
 
 const EmailSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
     },
     subject: {
       type: String,
@@ -23,8 +23,12 @@ const EmailSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ["motivation", "nutrition", "fitness", "wellness", "general"],
-      default: "general",
+      default: "motivation",
+      enum: ["motivation", "reminder", "announcement"],
+    },
+    sentToCount: {
+      type: Number,
+      default: 0,
     },
     isRead: {
       type: Boolean,
@@ -44,11 +48,11 @@ const EmailSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  },
-)
+  }
+);
 
 // Index for efficient queries
-EmailSchema.index({ userId: 1, createdAt: -1 })
-EmailSchema.index({ userId: 1, isRead: 1 })
+EmailSchema.index({ userId: 1, createdAt: -1 });
+EmailSchema.index({ userId: 1, isRead: 1 });
 
-module.exports = mongoose.model("Email", EmailSchema)
+module.exports = mongoose.model("Email", EmailSchema);
