@@ -230,13 +230,10 @@ exports.getUserDashboard = async (req, res, next) => {
       .limit(4);
 
     // Get latest 3 motivational emails for the user
-    const emails = await Email.find({
-      userId: req.user._id,
-      category: "motivation",
-    })
+    const emails = await Email.find({ category: "motivation" })
       .sort({ createdAt: -1 })
       .limit(3)
-      .select("subject content createdAt");
+      .select("subject content category createdAt");
 
     res.status(200).json({
       success: true,
