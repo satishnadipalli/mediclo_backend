@@ -43,6 +43,7 @@ const discountRoutes = require("./routes/discountRoutes");
 const galleryRoutes = require("./routes/galleryRoutes");
 const diseaseRoutes = require("./routes/diseaseRoutes");
 //Add shipping-routes
+const paymentRoutes = require("./routes/paymentRoutes")
 const shippingRoutes = require("./routes/orderRoutes");
 const {
   smartSearch,
@@ -154,6 +155,7 @@ app.use("/api/workshops", workshopRoutes);
 app.use("/api/admin", adminRoutes);
 //detox routes
 app.use("/api/detox", detoxRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Root route
 app.get("/", (req, res) => {

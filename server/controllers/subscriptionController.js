@@ -2,7 +2,7 @@ const Subscription = require("../models/Subscription");
 const SubscriptionPlan = require("../models/SubscriptionPlan");
 const User = require("../models/User");
 const { validationResult, body } = require("express-validator");
-
+const crypto = require("crypto");
 /**********************
  * VALIDATION
  **********************/
@@ -175,28 +175,59 @@ exports.getSubscriptionPlan = async (req, res, next) => {
  * @access  Private (User)
  */
 exports.createSubscription = async (req, res, next) => {
+  console.log("Creating subscription with payment verification...")
   try {
-    const { plan: planId } = req.body;
+    const { plan: planId, paymentMethod, transactionId, razorpayOrderId, razorpaySignature } = req.body
 
-    const plan = await SubscriptionPlan.findById(planId);
+    // Validate required fields
+    if (!planId) {
+      return res.status(400).json({
+        success: false,
+        error: "Plan ID is required",
+      })
+    }
 
+    // If it's a Razorpay payment, verify the signature
+    if (paymentMethod === "razorpay" && transactionId && razorpayOrderId && razorpaySignature) {
+      console.log("🔍 Verifying Razorpay payment signature...")
+
+      // Create signature for verification
+      const body = razorpayOrderId + "|" + transactionId
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(body.toString())
+        .digest("hex")
+
+      // Verify signature
+      if (expectedSignature !== razorpaySignature) {
+        console.log("❌ Payment signature verification failed")
+        return res.status(400).json({
+          success: false,
+          error: "Payment verification failed",
+        })
+      }
+
+      console.log("✅ Payment signature verified")
+    }
+
+    const plan = await SubscriptionPlan.findById(planId)
     if (!plan) {
-      return res.status(404).json({ success: false, error: "Plan not found" });
+      return res.status(404).json({ success: false, error: "Plan not found" })
     }
 
     const existing = await Subscription.findOne({
       user: req.user._id,
       isActive: true,
-    });
+    })
 
     if (existing) {
       return res.status(400).json({
         success: false,
         error: "User already has an active subscription",
-      });
+      })
     }
 
-    const { startDate, endDate, nextRenewalDate } = calculateDates(plan);
+    const { startDate, endDate, nextRenewalDate } = calculateDates(plan)
 
     const subscription = await Subscription.create({
       user: req.user._id,
@@ -208,33 +239,38 @@ exports.createSubscription = async (req, res, next) => {
       startDate,
       endDate,
       nextRenewalDate,
-      paymentStatus: "paid",
+      paymentStatus: "paid", // Only set to paid after verification
       isActive: true,
       autoRenew: true,
       paymentHistory: [
         {
           amount: plan.price,
           status: "successful",
-          paymentMethod: req.body.paymentMethod || "card",
-          transactionId: req.body.transactionId || "",
+          paymentMethod: paymentMethod || "card",
+          transactionId: transactionId || "",
+          razorpayOrderId: razorpayOrderId || "",
         },
       ],
-    });
+    })
 
-    req.user.membership = plan.name.toLowerCase();
-    req.user.subscriptionStart = startDate;
-    req.user.subscriptionEnd = endDate;
-    await req.user.save();
+    // Update user membership
+    req.user.membership = plan.name.toLowerCase()
+    req.user.subscriptionStart = startDate
+    req.user.subscriptionEnd = endDate
+    await req.user.save()
 
-    res.status(201).json({ success: true, data: subscription });
+    console.log("✅ Subscription created successfully:", subscription._id)
+
+    res.status(201).json({ success: true, data: subscription })
   } catch (err) {
-    console.error("Create subscription error:", err);
+    console.error("Create subscription error:", err)
     res.status(500).json({
       success: false,
       error: "Server Error",
-    });
+    })
   }
-};
+}
+
 
 /**
  * @desc    Renew subscription

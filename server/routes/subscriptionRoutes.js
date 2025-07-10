@@ -22,9 +22,9 @@ router.get("/plans/:id", getSubscriptionPlan);
 
 // USER ROUTES (need login)
 router.use(protect);
-router.post("/", createSubscription);
-router.post("/:id/renew", renewSubscription);
-router.post("/:id/cancel", cancelSubscription);
+router.post("/",protect, createSubscription);
+router.post("/:id/renew",protect, renewSubscription);
+router.post("/:id/cancel",protect, cancelSubscription);
 
 // Protected admin-only routes
 router.post(
