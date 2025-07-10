@@ -4,6 +4,7 @@ const Recipe = require("../models/Recipe");
 const Workshop = require("../models/Workshop");
 const Webinar = require("../models/Webinar");
 const Email = require("../models/Email");
+const DetoxPlan = require("../models/DetoxPlan");
 
 // Validation rules
 exports.updateUserValidation = [
@@ -210,11 +211,14 @@ exports.getUserDashboard = async (req, res, next) => {
 
     let recipes = [];
     let workshops = [];
+    let detoxPlans = [];
 
     if (isSubscribed) {
       recipes = await Recipe.find().sort({ createdAt: -1 }).limit(4);
 
       workshops = await Workshop.find().sort({ createdAt: -1 }).limit(4);
+
+      detoxPlans = await DetoxPlan.find().sort({ createdAt: -1 }).limit(4);
     }
 
     const webinars = await Webinar.find(
@@ -241,6 +245,7 @@ exports.getUserDashboard = async (req, res, next) => {
         workshops,
         webinars,
         emails,
+        detoxPlans,
       },
     });
   } catch (err) {

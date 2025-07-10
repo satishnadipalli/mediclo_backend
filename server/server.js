@@ -58,6 +58,8 @@ const recipeRoutes = require("./routes/recipeRoutes");
 const workshopRoutes = require("./routes/workshopRoutes");
 //adminRoutes
 const adminRoutes = require("./routes/adminRoutes");
+//detoxRoutes
+const detoxRoutes = require("./routes/detoxRoutes");
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -150,6 +152,8 @@ app.use("/api/recipes", recipeRoutes);
 app.use("/api/workshops", workshopRoutes);
 //admin routes
 app.use("/api/admin", adminRoutes);
+//detox routes
+app.use("/api/detox", detoxRoutes);
 
 // Root route
 app.get("/", (req, res) => {
