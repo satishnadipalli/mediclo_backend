@@ -37,8 +37,6 @@ router.post(
   "/request",
   protect,
   authorize("user", "parent"),
-  validateAppointmentRequest,
-  validateRequest,
   submitAppointmentRequest
 );
 
