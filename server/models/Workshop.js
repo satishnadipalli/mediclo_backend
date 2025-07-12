@@ -94,4 +94,4 @@ WorkshopSchema.virtual("availableSpots").get(function () {
 WorkshopSchema.index({ date: 1, status: 1 })
 WorkshopSchema.index({ category: 1 })
 
-module.exports = mongoose.model("Workshop", WorkshopSchema)
+module.exports = mongoose.model("Workshop", WorkshopSchema);

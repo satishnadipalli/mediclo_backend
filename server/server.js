@@ -13,6 +13,7 @@ const fileUpload = require("express-fileupload");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
 const startOverdueUpdateJob = require("./utils/cronJob");
+const Toy = require("./models/Toy");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -40,6 +41,7 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const discountRoutes = require("./routes/discountRoutes");
 // Add new routes
+const meetingRoutes = require("./routes/meetingRoutes")
 const galleryRoutes = require("./routes/galleryRoutes");
 const diseaseRoutes = require("./routes/diseaseRoutes");
 //Add shipping-routes
@@ -134,6 +136,7 @@ app.use("/api/therapists", therapistRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/job-applications", jobApplicationRoutes);
 app.use("/api/blogs", blogRoutes);
+app.use("/api/meetings", meetingRoutes)
 // Comment out or remove the inventoryRoutes usage
 // app.use("/api/inventory", inventoryRoutes);
 app.use("/api/orders", orderRoutes);
@@ -375,34 +378,36 @@ process.on("unhandledRejection", (err, promise) => {
 //   }
 // })
 
-// // GET /api/toys/search-available - Search available toys for issuing
-// app.get("/api/search-available", async (req, res) => {
-//   try {
-//     const { search } = req.query
+// GET /api/toys/search-available - Search available toys for issuing
+app.get("/api/search-available", async (req, res) => {
+  try {
+    
+    const { search } = req.query
 
-//     const query = {}
-//     if (search) {
-//       query.$or = [{ name: { $regex: search, $options: "i" } }, { category: { $regex: search, $options: "i" } }]
-//     }
+    const query = {}
+    if (search) {
+      query.$or = [{ name: { $regex: search, $options: "i" } }, { category: { $regex: search, $options: "i" } }]
+    }
 
-//     const toys = await Toy.find(query)
-//       .select("name category availableUnits image")
-//       .where("availableUnits")
-//       .gt(0)
-//       .limit(10)
+    const toys = await Toy.find(query)
+      .select("name category availableUnits image")
+      .where("availableUnits")
+      .gt(0)
+      .limit(10)
 
-//     res.json({
-//       success: true,
-//       data: toys,
-//     })
-//   } catch (error) {
-//     // console.log(error)
-//     res.status(500).json({
-//       success: false,
-//       error: error.message,
-//     })
-//   }
-// })
+    console.log("working up to here");
+    res.json({
+      success: true,
+      data: toys,
+    })
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
+  }
+});
 
 // // GET /api/toys/:toyId/available-units - Get available units for a specific toy
 // app.get("/api/toys/:toyId/available-units", async (req, res) => {

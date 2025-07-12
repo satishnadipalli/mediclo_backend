@@ -5,7 +5,7 @@ const Workshop = require("../models/Workshop");
 const Webinar = require("../models/Webinar");
 const Email = require("../models/Email");
 const DetoxPlan = require("../models/DetoxPlan");
-
+const Meeting = require("../models/Meeting")
 // Validation rules
 exports.updateUserValidation = [
   check("email", "Please include a valid email").optional().isEmail(),
@@ -196,11 +196,10 @@ exports.deactivateUser = async (req, res, next) => {
 // @desc    Get personalized dashboard content for user
 // @route   GET /api/users/dashboard
 // @access  Private
+
 exports.getUserDashboard = async (req, res, next) => {
   try {
-    const isSubscribed =
-      req.user?.subscriptionEnd &&
-      new Date(req.user.subscriptionEnd) > new Date();
+    const isSubscribed = req.user?.subscriptionEnd && new Date(req.user.subscriptionEnd) > new Date()
 
     const userData = {
       name: req.user.fullName,
@@ -209,31 +208,38 @@ exports.getUserDashboard = async (req, res, next) => {
       membership: req.user.membership || null,
       subscriptionStart: req.user.subscriptionStart || null,
       subscriptionEnd: req.user.subscriptionEnd || null,
-    };
-
-    let recipes = [];
-    let workshops = [];
-    let detoxPlans = [];
-
-    if (isSubscribed) {
-      recipes = await Recipe.find().sort({ createdAt: -1 }).limit(4);
-
-      workshops = await Workshop.find().sort({ createdAt: -1 }).limit(4);
-
-      detoxPlans = await DetoxPlan.find().sort({ createdAt: -1 }).limit(4);
     }
 
-    const webinars = await Webinar.find(
-      isSubscribed ? {} : { status: "upcoming" }
-    )
+    let recipes = []
+    let workshops = []
+    let detoxPlans = []
+    let meetings = [] // Initialize meetings array
+
+    if (isSubscribed) {
+      recipes = await Recipe.find().sort({ createdAt: -1 }).limit(4)
+      workshops = await Workshop.find().sort({ createdAt: -1 }).limit(4)
+      detoxPlans = await DetoxPlan.find().sort({ createdAt: -1 }).limit(4)
+
+      // Fetch meetings based on user's membership
+      const userMembership = req.user.membership
+      const meetingQuery = {
+        $or: [
+          { associatedPlans: userMembership }, // Meetings specifically for their plan
+          { associatedPlans: { $size: 0 } }, // Meetings for all plans (if empty array means all)
+        ],
+      }
+      meetings = await Meeting.find(meetingQuery).sort({ date: 1, startTime: 1 }).limit(4)
+    }
+
+    const webinars = await Webinar.find(isSubscribed ? {} : { status: "upcoming" })
       .sort({ date: -1 })
-      .limit(4);
+      .limit(4)
 
     // Get latest 3 motivational emails for the user
     const emails = await Email.find({ category: "motivation" })
       .sort({ createdAt: -1 })
       .limit(3)
-      .select("subject content category createdAt");
+      .select("subject content category createdAt")
 
     res.status(200).json({
       success: true,
@@ -245,9 +251,10 @@ exports.getUserDashboard = async (req, res, next) => {
         webinars,
         emails,
         detoxPlans,
+        meetings, // Include meetings in the response
       },
-    });
+    })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
