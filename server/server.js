@@ -12,15 +12,11 @@ const hpp = require("hpp");
 const fileUpload = require("express-fileupload");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
-<<<<<<< HEAD
-const startOverdueUpdateJob = require("./utils/cronJob");
-const Toy = require("./models/Toy");
-=======
 const {
   startOverdueUpdateJob,
   startRenewalReminderJob,
 } = require("./utils/cronJob");
->>>>>>> f582bd050f8c65eb02f5cf6f48cbe7f5f1e82583
+const Toy = require("./models/Toy");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
