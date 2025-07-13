@@ -1,28 +1,32 @@
-
-const Toy = require("../models/Toy") // Import Toy model
+const Toy = require("../models/Toy"); // Import Toy model
 const express = require("express");
-const Borrowing = require("../models/ToyBorrowing") // Import Borrowing model
+const Borrowing = require("../models/ToyBorrowing"); // Import Borrowing model
 const ToyUnit = require("../models/ToyUnit"); // Import ToyUnit model
 
-
-
+/**
+ * @desc    Get dashboard statistics (available toys, borrowings, due soon, overdue)
+ * @route   GET /api/dashboard/stats
+ * @access  Private (admin, staff)
+ */
 exports.ToyStats = async (req, res) => {
   try {
     // Get total available toys (sum of all available units)
-    const toys = await Toy.find().populate("units")
+    const toys = await Toy.find().populate("units");
     const toysAvailable = toys.reduce((total, toy) => {
-      const availableUnits = toy.units.filter((unit) => unit.isAvailable).length
-      return total + availableUnits
-    }, 0)
+      const availableUnits = toy.units.filter(
+        (unit) => unit.isAvailable
+      ).length;
+      return total + availableUnits;
+    }, 0);
 
     // Get active borrowings count
     const activeBorrowings = await Borrowing.countDocuments({
       status: "Borrowed",
-    })
+    });
 
     // Get due soon count (due within 3 days)
-    const threeDaysFromNow = new Date()
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3)
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
     const dueSoon = await Borrowing.countDocuments({
       status: "Borrowed",
@@ -30,13 +34,13 @@ exports.ToyStats = async (req, res) => {
         $gte: new Date(),
         $lte: threeDaysFromNow,
       },
-    })
+    });
 
     // Get overdue count
     const overdue = await Borrowing.countDocuments({
       status: "Borrowed",
       dueDate: { $lt: new Date() },
-    })
+    });
 
     res.json({
       success: true,
@@ -46,20 +50,25 @@ exports.ToyStats = async (req, res) => {
         dueSoon,
         overdue,
       },
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
-exports.getBorrowedToys =  async (req, res) => {
+/**
+ * @desc    Get list of borrowed toys (with optional search)
+ * @route   GET /api/dashboard/borrowed-toys
+ * @access  Private (admin, staff)
+ */
+exports.getBorrowedToys = async (req, res) => {
   try {
-    const { search } = req.query
+    const { search } = req.query;
 
-    const query = { status: "Borrowed" }
+    const query = { status: "Borrowed" };
 
     // Add search functionality
     if (search) {
@@ -67,7 +76,7 @@ exports.getBorrowedToys =  async (req, res) => {
         { borrowerName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { phone: { $regex: search, $options: "i" } },
-      ]
+      ];
     }
 
     const borrowedToys = await Borrowing.find(query)
@@ -80,19 +89,21 @@ exports.getBorrowedToys =  async (req, res) => {
         select: "unitNumber condition",
       })
       .sort({ issueDate: -1 })
-      .limit(50) // Limit for performance
+      .limit(50); // Limit for performance
 
     // Calculate status for each borrowing
     const borrowedToysWithStatus = borrowedToys.map((borrowing) => {
-      const today = new Date()
-      const dueDate = new Date(borrowing.dueDate)
-      const threeDaysFromNow = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+      const today = new Date();
+      const dueDate = new Date(borrowing.dueDate);
+      const threeDaysFromNow = new Date(
+        today.getTime() + 3 * 24 * 60 * 60 * 1000
+      );
 
-      let status = "Active"
+      let status = "Active";
       if (dueDate < today) {
-        status = "Overdue"
+        status = "Overdue";
       } else if (dueDate <= threeDaysFromNow) {
-        status = "Due Soon"
+        status = "Due Soon";
       }
 
       return {
@@ -108,148 +119,163 @@ exports.getBorrowedToys =  async (req, res) => {
         notes: borrowing.notes,
         status: status,
         conditionOnIssue: borrowing.conditionOnIssue,
-      }
-    })
+      };
+    });
 
     res.json({
       success: true,
       count: borrowedToysWithStatus.length,
       data: borrowedToysWithStatus,
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
+/**
+ * @desc Send reminder email to a specific borrowing record
+ * @route POST /api/dashboard/send-reminder
+ * @access Private (admin, staff)
+ */
 exports.sendRemainder = async (req, res) => {
   try {
-    const { borrowingId } = req.body
+    const { borrowingId } = req.body;
+
+    if (!borrowingId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Borrowing ID is required" });
+    }
 
     const borrowing = await Borrowing.findById(borrowingId)
       .populate("toyId", "name")
-      .populate("toyUnitId", "unitNumber")
+      .populate("toyUnitId", "unitNumber");
 
     if (!borrowing) {
       return res.status(404).json({
         success: false,
         error: "Borrowing not found",
-      })
+      });
     }
 
-    // Here you would implement actual email sending
-    // For now, we'll just log and return success
-    console.log(`Sending reminder to ${borrowing.email} for ${borrowing.toyId.name}`)
-
-    // You can integrate with services like SendGrid, Nodemailer, etc.
-    // Example with nodemailer:
-    /*
-    const transporter = nodemailer.createTransporter({...});
-    await transporter.sendMail({
-      to: borrowing.email,
-      subject: `Reminder: ${borrowing.toyId.name} Return Due`,
-      html: `
-        <p>Dear ${borrowing.borrowerName},</p>
-        <p>This is a friendly reminder that the toy "${borrowing.toyId.name}" (Unit #${borrowing.toyUnitId.unitNumber}) is due for return on ${new Date(borrowing.dueDate).toLocaleDateString()}.</p>
-        <p>Please return it at your earliest convenience.</p>
-        <p>Thank you!</p>
-      `
-    });
-    */
+    console.log(
+      `Sending reminder to ${borrowing.email} for ${borrowing.toyId.name}`
+    );
 
     res.json({
       success: true,
       message: "Reminder sent successfully",
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
+/**
+ * @desc    Process a toy return by borrowing ID
+ * @route   PUT /api/dashboard/process-return/:borrowingId
+ * @access  Private (admin, staff)
+ */
 exports.getBorrowingById = async (req, res) => {
   try {
-    const { borrowingId } = req.params
-    const { conditionOnReturn = "Good", returnNotes = "" } = req.body
+    const { borrowingId } = req.params;
+    const { conditionOnReturn = "Good", returnNotes = "" } = req.body;
 
-    const borrowing = await Borrowing.findById(borrowingId).populate("toyUnitId")
+    if (!borrowingId) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing borrowing ID",
+      });
+    }
 
+    const borrowing = await Borrowing.findById(borrowingId).populate(
+      "toyUnitId"
+    );
     if (!borrowing) {
       return res.status(404).json({
         success: false,
         error: "Borrowing not found",
-      })
+      });
     }
 
     if (borrowing.status !== "Borrowed") {
       return res.status(400).json({
         success: false,
         error: "Toy is not currently borrowed",
-      })
+      });
     }
 
     // Update borrowing record
-    borrowing.status = "Returned"
-    borrowing.returnDate = new Date()
-    borrowing.conditionOnReturn = conditionOnReturn
-    borrowing.returnNotes = returnNotes
-    await borrowing.save()
+    borrowing.status = "Returned";
+    borrowing.returnDate = new Date();
+    borrowing.conditionOnReturn = conditionOnReturn;
+    borrowing.returnNotes = returnNotes;
+    await borrowing.save();
 
     // Update toy unit availability
-    const toyUnit = await ToyUnit.findById(borrowing.toyUnitId)
+    const toyUnit = await ToyUnit.findById(borrowing.toyUnitId);
     if (toyUnit) {
-      toyUnit.isAvailable = true
-      toyUnit.condition = conditionOnReturn
-      toyUnit.currentBorrower = null
-      await toyUnit.save()
+      toyUnit.isAvailable = true;
+      toyUnit.condition = conditionOnReturn;
+      toyUnit.currentBorrower = null;
+      await toyUnit.save();
     }
 
     // Update toy's available units count
-    const toy = await Toy.findById(borrowing.toyId)
+    const toy = await Toy.findById(borrowing.toyId);
     if (toy) {
       const availableUnits = await ToyUnit.countDocuments({
         toyId: toy._id,
         isAvailable: true,
-      })
-      toy.availableUnits = availableUnits
-      await toy.save()
+      });
+      toy.availableUnits = availableUnits;
+      await toy.save();
     }
 
     res.json({
       success: true,
       message: "Toy returned successfully",
       data: borrowing,
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
+/**
+ * @desc    Get full details and borrowing history of a toy
+ * @route   GET /api/toys/:toyId/details
+ * @access  Private (admin, staff)
+ */
 exports.getToyDetails = async (req, res) => {
   try {
-    const { toyId } = req.params
+    const { toyId } = req.params;
+    if (!toyId) {
+      return res.status(400).json({ success: false, error: "Missing toy ID" });
+    }
 
-    const toy = await Toy.findById(toyId).populate("units")
-
+    const toy = await Toy.findById(toyId).populate("units");
     if (!toy) {
       return res.status(404).json({
         success: false,
         error: "Toy not found",
-      })
+      });
     }
 
     // Get borrowing history for this toy
     const borrowingHistory = await Borrowing.find({ toyId: toyId })
       .populate("toyUnitId", "unitNumber")
       .sort({ issueDate: -1 })
-      .limit(10)
+      .limit(10);
 
     // Get current borrowings for this toy
     const currentBorrowings = await Borrowing.find({
@@ -257,7 +283,7 @@ exports.getToyDetails = async (req, res) => {
       status: "Borrowed",
     })
       .populate("toyUnitId", "unitNumber")
-      .sort({ issueDate: -1 })
+      .sort({ issueDate: -1 });
 
     res.json({
       success: true,
@@ -269,18 +295,23 @@ exports.getToyDetails = async (req, res) => {
         totalBorrowings: borrowingHistory.length,
         activeBorrowings: currentBorrowings.length,
       },
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
+/**
+ * @desc    Get all borrowers and their current borrowings
+ * @route   GET /api/borrowers
+ * @access  Private (admin, staff)
+ */
 exports.getAllBorrowers = async (req, res) => {
   try {
-    const { search } = req.query
+    const { search } = req.query;
 
     // Build aggregation pipeline to get unique borrowers with their current borrowings
     const pipeline = [
@@ -311,7 +342,7 @@ exports.getAllBorrowers = async (req, res) => {
       {
         $unwind: "$unitDetails",
       },
-    ]
+    ];
 
     // Add search filter if provided
     if (search) {
@@ -324,7 +355,7 @@ exports.getAllBorrowers = async (req, res) => {
             { "toyDetails.name": { $regex: search, $options: "i" } },
           ],
         },
-      })
+      });
     }
 
     // Group by borrower to get their current borrowings
@@ -355,51 +386,58 @@ exports.getAllBorrowers = async (req, res) => {
       },
       {
         $sort: { "_id.borrowerName": 1 },
-      },
-    )
+      }
+    );
 
-    const borrowers = await Borrowing.aggregate(pipeline)
+    const borrowers = await Borrowing.aggregate(pipeline);
 
     // Calculate status for each borrowing
     const borrowersWithStatus = borrowers.map((borrower) => {
       const borrowingsWithStatus = borrower.borrowings.map((borrowing) => {
-        const today = new Date()
-        const dueDate = new Date(borrowing.dueDate)
-        const threeDaysFromNow = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+        const today = new Date();
+        const dueDate = new Date(borrowing.dueDate);
+        const threeDaysFromNow = new Date(
+          today.getTime() + 3 * 24 * 60 * 60 * 1000
+        );
 
-        let status = "Active"
+        let status = "Active";
         if (dueDate < today) {
-          status = "Overdue"
+          status = "Overdue";
         } else if (dueDate <= threeDaysFromNow) {
-          status = "Due Soon"
+          status = "Due Soon";
         }
 
-        return { ...borrowing, calculatedStatus: status }
-      })
+        return { ...borrowing, calculatedStatus: status };
+      });
 
       return {
         ...borrower._id,
         borrowings: borrowingsWithStatus,
         totalBorrowed: borrower.totalBorrowed,
-      }
-    })
+      };
+    });
 
     res.json({
       success: true,
       count: borrowersWithStatus.length,
       data: borrowersWithStatus,
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
-exports.getBorrowerByEmail  = async (req, res) => {
+/**
+ * @desc    Get specific borrower's details, borrowing history, and current borrowings
+ * @route   GET /api/borrowers/:borrowerEmail
+ * @access  Private (admin, staff)
+ */
+exports.getBorrowerByEmail = async (req, res) => {
   try {
-    const { borrowerEmail } = req.params
+    const { borrowerEmail } = req.params;
 
     // Get borrower's current borrowings
     const currentBorrowings = await Borrowing.find({
@@ -408,7 +446,7 @@ exports.getBorrowerByEmail  = async (req, res) => {
     })
       .populate("toyId", "name category image")
       .populate("toyUnitId", "unitNumber condition")
-      .sort({ issueDate: -1 })
+      .sort({ issueDate: -1 });
 
     // Get borrower's borrowing history
     const borrowingHistory = await Borrowing.find({
@@ -417,13 +455,13 @@ exports.getBorrowerByEmail  = async (req, res) => {
       .populate("toyId", "name category image")
       .populate("toyUnitId", "unitNumber condition")
       .sort({ issueDate: -1 })
-      .limit(20)
+      .limit(20);
 
     if (borrowingHistory.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Borrower not found",
-      })
+      });
     }
 
     // Get borrower info from the most recent record
@@ -432,39 +470,49 @@ exports.getBorrowerByEmail  = async (req, res) => {
       email: borrowingHistory[0].email,
       phone: borrowingHistory[0].phone,
       relationship: borrowingHistory[0].relationship,
-    }
+    };
 
     // Calculate status for current borrowings
     const currentBorrowingsWithStatus = currentBorrowings.map((borrowing) => {
-      const today = new Date()
-      const dueDate = new Date(borrowing.dueDate)
-      const threeDaysFromNow = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+      const today = new Date();
+      const dueDate = new Date(borrowing.dueDate);
+      const threeDaysFromNow = new Date(
+        today.getTime() + 3 * 24 * 60 * 60 * 1000
+      );
 
-      let status = "Active"
+      let status = "Active";
       if (dueDate < today) {
-        status = "Overdue"
+        status = "Overdue";
       } else if (dueDate <= threeDaysFromNow) {
-        status = "Due Soon"
+        status = "Due Soon";
       }
 
-      return { ...borrowing.toObject(), calculatedStatus: status }
-    })
+      return { ...borrowing.toObject(), calculatedStatus: status };
+    });
 
     // Calculate status for history
     const historyWithStatus = borrowingHistory.map((borrowing) => {
       if (borrowing.status === "Returned") {
-        const returnDate = new Date(borrowing.returnDate)
-        const dueDate = new Date(borrowing.dueDate)
+        const returnDate = new Date(borrowing.returnDate);
+        const dueDate = new Date(borrowing.dueDate);
 
         if (returnDate <= dueDate) {
-          return { ...borrowing.toObject(), calculatedStatus: "Returned On Time" }
+          return {
+            ...borrowing.toObject(),
+            calculatedStatus: "Returned On Time",
+          };
         } else {
-          const daysLate = Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24))
-          return { ...borrowing.toObject(), calculatedStatus: `Returned Late (${daysLate} Days)` }
+          const daysLate = Math.ceil(
+            (returnDate - dueDate) / (1000 * 60 * 60 * 24)
+          );
+          return {
+            ...borrowing.toObject(),
+            calculatedStatus: `Returned Late (${daysLate} Days)`,
+          };
         }
       }
-      return { ...borrowing.toObject(), calculatedStatus: borrowing.status }
-    })
+      return { ...borrowing.toObject(), calculatedStatus: borrowing.status };
+    });
 
     res.json({
       success: true,
@@ -475,58 +523,79 @@ exports.getBorrowerByEmail  = async (req, res) => {
         totalBorrowings: borrowingHistory.length,
         activeBorrowings: currentBorrowings.length,
       },
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
+/**
+ * @desc    Send email reminder to a specific borrower by email and borrowing ID
+ * @route   POST /api/borrowers/:borrowerEmail/send-reminder
+ * @access  Private (admin, staff)
+ */
 exports.sendRemainderToEmail = async (req, res) => {
   try {
-    const { borrowerEmail } = req.params
-    const { borrowingId } = req.body
+    const { borrowerEmail } = req.params;
+    const { borrowingId } = req.body;
+
+    if (!borrowingId || !borrowerEmail) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing borrowing ID or email" });
+    }
 
     const borrowing = await Borrowing.findById(borrowingId)
       .populate("toyId", "name")
-      .populate("toyUnitId", "unitNumber")
+      .populate("toyUnitId", "unitNumber");
 
     if (!borrowing) {
       return res.status(404).json({
         success: false,
         error: "Borrowing not found",
-      })
+      });
     }
 
     if (borrowing.email !== borrowerEmail) {
       return res.status(400).json({
         success: false,
         error: "Borrowing does not belong to this borrower",
-      })
+      });
     }
 
     // Here you would implement actual email sending
-    console.log(`Sending reminder to ${borrowing.email} for ${borrowing.toyId.name}`)
+    // console.log(
+    //   `Sending reminder to ${borrowing.email} for ${borrowing.toyId.name}`
+    // );
 
     res.json({
       success: true,
       message: "Reminder sent successfully",
-    })
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-    })
+    });
   }
-}
+};
 
+/**
+ * @desc    Get a borrower's complete borrowing history and current status by borrowing ID
+ * @route   GET /api/borrowerss/:borrowerId
+ * @access  Private (admin, staff)
+ */
 exports.getBorrowersById = async (req, res) => {
   try {
     const { borrowerId } = req.params;
-
-    console.log(borrowerId)
+    if (!borrowerId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Borrower ID is required" });
+    }
 
     // Get the specific borrowing record
     const mainBorrowing = await Borrowing.findById(borrowerId)
@@ -540,11 +609,9 @@ exports.getBorrowersById = async (req, res) => {
       });
     }
 
-    const borrowerEmail = mainBorrowing.email;
-
     // Get all borrowings for this borrower
     const allBorrowings = await Borrowing.find({
-      email: borrowerEmail,
+      email: mainBorrowing.email,
     })
       .populate("toyId")
       .populate("toyUnitId")
@@ -558,20 +625,32 @@ exports.getBorrowersById = async (req, res) => {
 
       if (borrowing.returnDate) {
         const returnDate = new Date(borrowing.returnDate);
-        calculatedStatus = returnDate <= dueDate ? "Returned On Time" : "Returned Late";
+        calculatedStatus =
+          returnDate <= dueDate ? "Returned On Time" : "Returned Late";
       } else if (dueDate < today) {
         calculatedStatus = "Overdue";
-      } else if (dueDate <= new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)) {
+      } else if (
+        dueDate <= new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+      ) {
         calculatedStatus = "Due Soon";
       }
 
       return {
         _id: String(borrowing._id),
         toyName: borrowing.toyId ? String(borrowing.toyId.name) : "Unknown Toy",
-        toyCategory: borrowing.toyId ? String(borrowing.toyId.category) : "Unknown",
-        toyImage: borrowing.toyId && borrowing.toyId.image ? String(borrowing.toyId.image) : null,
-        unitNumber: borrowing.toyUnitId ? Number(borrowing.toyUnitId.unitNumber) : 0,
-        unitCondition: borrowing.toyUnitId ? String(borrowing.toyUnitId.condition) : "Unknown",
+        toyCategory: borrowing.toyId
+          ? String(borrowing.toyId.category)
+          : "Unknown",
+        toyImage:
+          borrowing.toyId && borrowing.toyId.image
+            ? String(borrowing.toyId.image)
+            : null,
+        unitNumber: borrowing.toyUnitId
+          ? Number(borrowing.toyUnitId.unitNumber)
+          : 0,
+        unitCondition: borrowing.toyUnitId
+          ? String(borrowing.toyUnitId.condition)
+          : "Unknown",
         issueDate: String(borrowing.issueDate),
         dueDate: String(borrowing.dueDate),
         returnDate: borrowing.returnDate ? String(borrowing.returnDate) : null,
@@ -599,7 +678,21 @@ exports.getBorrowersById = async (req, res) => {
       },
     };
 
-    res.json(response);
+    res.json({
+      success: true,
+      data: {
+        borrowerInfo: {
+          borrowerName: mainBorrowing.borrowerName,
+          email: mainBorrowing.email,
+          phone: mainBorrowing.phone,
+          relationship: mainBorrowing.relationship,
+        },
+        currentBorrowings,
+        borrowingHistory: cleanBorrowings,
+        totalBorrowings: allBorrowings.length,
+        activeBorrowings: currentBorrowings.length,
+      },
+    });
   } catch (error) {
     console.error("Error fetching borrower details:", error);
     res.status(500).json({
@@ -607,11 +700,22 @@ exports.getBorrowersById = async (req, res) => {
       error: "Server Error",
     });
   }
-}
+};
 
+/**
+ * @desc    Send reminder email for a specific borrowing ID (placeholder function)
+ * @route   POST /api/borrowers/:borrowerId/send-reminder
+ * @access  Private (admin, staff)
+ */
 exports.sendRemainderByBororrwerId = async (req, res) => {
   try {
     const { borrowerId } = req.params;
+    if (!borrowerId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing borrower ID" });
+    }
+    //Placeholder logic for sending email will come here
     console.log(`Sending reminder for borrowing ID: ${borrowerId}`);
 
     res.json({
@@ -625,6 +729,4 @@ exports.sendRemainderByBororrwerId = async (req, res) => {
       error: "Server Error",
     });
   }
-}
-
-// exports.getAvailableUnits = 
+};
