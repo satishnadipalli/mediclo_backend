@@ -1,8 +1,11 @@
-
 const mongoose = require("mongoose");
 
 const MeetingSchema = new mongoose.Schema(
   {
+    title: {
+      type: String,
+      required: true,
+    },
     meetLink: {
       type: String,
       required: [true, "Meeting link is required"],
@@ -33,15 +36,14 @@ const MeetingSchema = new mongoose.Schema(
       trim: true,
     },
     associatedPlans: {
-      type: [String], // e.g., ["prime", "basic"]
-      default: [],
+      type: [String],
+      enum: ["basic", "premium", "both"],
+      default: "both",
     },
   },
   {
     timestamps: true,
-  },
-)
+  }
+);
 
-// const Meeting = mongoose.model("Meeting", MeetingSchema)
 module.exports = mongoose.model("Meeting", MeetingSchema);
-// export default Meeting
