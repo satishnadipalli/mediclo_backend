@@ -1,5 +1,6 @@
-const mongoose = require("mongoose");
+const mongoose = require("mongoose")
 
+// Define the ToyUnitSchema
 const ToyUnitSchema = new mongoose.Schema(
   {
     toyId: {
@@ -32,11 +33,11 @@ const ToyUnitSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
-);
+  },
+)
 
 // Create compound index for toyId and unitNumber to ensure uniqueness
-ToyUnitSchema.index({ toyId: 1, unitNumber: 1 }, { unique: true });
+ToyUnitSchema.index({ toyId: 1, unitNumber: 1 }, { unique: true })
 
 // Virtual for borrowing history
 ToyUnitSchema.virtual("borrowingHistory", {
@@ -44,6 +45,8 @@ ToyUnitSchema.virtual("borrowingHistory", {
   localField: "_id",
   foreignField: "toyUnitId",
   justOne: false,
-});
+})
 
-module.exports = mongoose.model("ToyUnit", ToyUnitSchema);
+// Export the ToyUnit model
+const ToyUnit = mongoose.models.ToyUnit || mongoose.model("ToyUnit", ToyUnitSchema)
+module.exports = ToyUnit

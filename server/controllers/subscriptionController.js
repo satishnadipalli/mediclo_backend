@@ -604,6 +604,7 @@ exports.getSubscriberDetails = async (req, res) => {
       .populate("user", "-password")
       .populate("plan");
 
+      console.log(subscription,"sub")
     if (!subscription) {
       return res
         .status(404)
@@ -614,6 +615,7 @@ exports.getSubscriberDetails = async (req, res) => {
       success: true,
       data: {
         id: subscription._id,
+        userId: subscription?.user?._id,
         memberName: subscription.user?.name,
         email: subscription.user?.email,
         phone: subscription.user?.phone,

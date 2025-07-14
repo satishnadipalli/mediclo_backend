@@ -165,15 +165,32 @@ exports.getRecentEmails = async (req, res, next) => {
 // @access  Private/Admin
 exports.sendRenewalReminder = async (req, res, next) => {
   try {
+    console.log("Received request to send renewal reminder.");
+    console.log("User ID from request params:", req.params.userId); // <-- Add this
+    
     const user = await User.findById(req.params.userId);
-
-    if (!user || !user.subscriptionEnd) {
+    
+    console.log("User found by ID:", user); // <-- This is already there, but crucial
+    
+    if (!user) {
+      console.log("Error: User not found for ID:", req.params.userId); // <-- Add this
       return res.status(404).json({
         success: false,
-        message: "User not found or subscription end date missing",
+        message: "User not found", // Simplified message for clarity
       });
     }
 
+    console.log("User subscriptionEnd:", user.subscriptionEnd); // <-- Add this
+    
+    if (!user.subscriptionEnd) {
+      console.log("Error: Subscription end date missing for user:", user._id); // <-- Add this
+      return res.status(404).json({
+        success: false,
+        message: "Subscription end date missing", // Simplified message for clarity
+      });
+    }
+    
+    // If both checks pass, proceed with email sending
     await sendEmail({
       to: user.email,
       subject: "Your Membership Renewal Reminder",
@@ -182,14 +199,14 @@ exports.sendRenewalReminder = async (req, res, next) => {
         user.subscriptionEnd.toDateString()
       ),
     });
-
+    
     console.log("Email sent:", `<${user.email}>`);
-
     res.status(200).json({
       success: true,
       message: "Renewal email sent successfully",
     });
   } catch (err) {
+    console.error("Error in sendRenewalReminder:", err); // <-- Add this for general errors
     next(err);
   }
 };

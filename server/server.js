@@ -47,6 +47,7 @@ const discountRoutes = require("./routes/discountRoutes");
 const meetingRoutes = require("./routes/meetingRoutes")
 const galleryRoutes = require("./routes/galleryRoutes");
 const diseaseRoutes = require("./routes/diseaseRoutes");
+const cloudinaryRoutes = require("./routes/cloudinaryRoutes")
 //Add shipping-routes
 const paymentRoutes = require("./routes/paymentRoutes");
 const shippingRoutes = require("./routes/orderRoutes");
@@ -124,6 +125,7 @@ app.get("/api/test", (req, res) => {
 });
 
 // Mount routes
+app.use("/api/cdnary", cloudinaryRoutes)
 app.use("/api/products", productRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -165,6 +167,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/detox", detoxRoutes);
 app.use("/api/payments", paymentRoutes);
 
+
+
 // Root route
 app.get("/", (req, res) => {
   res.send("Backend Server was stated and successfully running...");
@@ -191,30 +195,56 @@ process.on("unhandledRejection", (err, promise) => {
 // GET /api/toys/search-available - Search available toys for issuing
 app.get("/api/search-available", async (req, res) => {
   try {
-    
     const { search } = req.query
-
     const query = {}
+    console.log(query)
+
+    console.log(`DEBUG: Received search query: "${search}"`)
+
     if (search) {
       query.$or = [{ name: { $regex: search, $options: "i" } }, { category: { $regex: search, $options: "i" } }]
     }
 
-    const toys = await Toy.find(query)
-      .select("name category availableUnits image")
-      .where("availableUnits")
-      .gt(0)
+    console.log("DEBUG: Mongoose query object:", JSON.stringify(query))
+
+    let toys = await Toy.find(query)
+      .populate({
+        path: "availableUnitsDetails", // This is the virtual that fetches unit details
+        select: "unitNumber condition",
+      })
       .limit(10)
 
-    console.log("working up to here");
+    console.log("DEBUG: Toys found BEFORE filtering (with populated units):", JSON.stringify(toys, null, 2))
+
+    // Filter out toys that have no available units after population
+    // This ensures 'availableUnitsDetails' array is not empty
+    toys = toys.filter((toy) => toy.availableUnitsDetails && toy.availableUnitsDetails.length > 0)
+
+    console.log("DEBUG: Toys found AFTER filtering:", JSON.stringify(toys, null, 2))
+
+    const formattedToys = toys.map((toy) => ({
+      _id: toy._id,
+      name: toy.name,
+      category: toy.category,
+      image: toy.image,
+      // This will now contain the unitNumber and condition for each available unit
+      availableUnits: toy.availableUnitsDetails.map((unit) => ({
+        unitId:unit?._id,
+        unitNumber: unit.unitNumber,
+        condition: unit.condition,
+      })),
+    }))
+
+    console.log("Successfully fetched and formatted available toys.")
     res.json({
       success: true,
-      data: toys,
+      data: formattedToys,
     })
   } catch (error) {
-    console.log(error)
+    console.error("Error in /api/search-available:", error)
     res.status(500).json({
       success: false,
       error: error.message,
     })
   }
-});
+})
