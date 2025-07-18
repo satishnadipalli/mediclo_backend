@@ -85,7 +85,7 @@ const AppointmentSchema = new mongoose.Schema(
       },
       method: {
         type: String,
-        enum: ["card", "cash", "insurance", "not_specified"],
+        enum: ["upi","card", "cash", "insurance", "not_specified"],
         default: "not_specified",
       },
     },
@@ -102,6 +102,7 @@ const AppointmentSchema = new mongoose.Schema(
     consent: {
       type: Boolean,
       default: false,
+      required:false
     },
     //total number of sessions prescribed by therapist
     totalSessions: {

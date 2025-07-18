@@ -44,32 +44,41 @@ const PatientSchema = new mongoose.Schema(
     emergencyContact: {
       name: {
         type: String,
-        required: [true, "Please add emergency contact name"],
+        required: false,
       },
       relation: {
         type: String,
-        required: [true, "Please add relation to patient"],
+        required: false,
       },
       phone: {
         type: String,
-        required: [true, "Please add emergency contact phone"],
+        required: false,
       },
     },
     parentInfo: {
       name: {
         type: String,
-        required: [true, "Please add parent/guardian name"],
+        required: [true, "Please add Father name"],
       },
       phone: {
         type: String,
-        required: [true, "Please add parent/guardian phone"],
+        required: [true, "Please add Father phone"],
       },
       email: {
         type: String,
         match: [
           /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-          "Please add a valid email",
+          "Please add a valid email Either mothers or Father's email is necessary",
         ],
+        required:false
+      },
+      motherName: {
+        type: String,
+        required: [true, "Please add parent/guardian name"],
+      },
+      motherphone : {
+        type: String,
+        required: [true, "Please add parent/guardian name"],
       },
       photo: {
         url: String,
@@ -190,3 +199,34 @@ PatientSchema.virtual("appointments", {
 // });
 
 module.exports = mongoose.model("Patient", PatientSchema);
+
+
+// [
+// {
+//   date : "23",
+//   paid : false
+// },
+// {
+//   date : "24",
+//   paid : false
+// }
+
+// ]
+// dates.length == 1 :
+//   // cureent funciontliy
+// dates.length > 1 :
+//   for( int i = 0 ; i< dates.length ; i++)
+//     // cureent funciontliy by updating with dates[i].date
+
+
+// 23rd --> no issies
+
+// 23rd 24th -->> 
+
+// {
+//   appointment ;1 at 24th date
+// }
+
+// {
+//   appintemtn 2 23rd date 
+// }

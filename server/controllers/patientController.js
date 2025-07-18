@@ -22,18 +22,7 @@ exports.createPatientValidation = [
   body("parentInfo.relationship", "Relationship to child is required")
     .optional()
     .isIn(["Father", "Mother", "Guardian", "Other"]),
-  body(
-    "emergencyContact.name",
-    "Emergency contact name is required"
-  ).notEmpty(),
-  body(
-    "emergencyContact.relation",
-    "Emergency contact relation is required"
-  ).notEmpty(),
-  body(
-    "emergencyContact.phone",
-    "Emergency contact phone is required"
-  ).notEmpty(),
+
 ];
 
 exports.updatePatientValidation = [
@@ -220,34 +209,132 @@ exports.createPatient = async (req, res, next) => {
     }
 
     const { parentInfo, ...patientData } = req.body;
-    let parentUser = await User.findOne({ email: parentInfo.email });
+
+    // Validate required father information
+    if (!parentInfo.name) {
+      return res.status(400).json({
+        success: false,
+        error: "Father's name is required",
+      });
+    }
+
+    if (!parentInfo.phone) {
+      return res.status(400).json({
+        success: false,
+        error: "Father's phone number is required",
+      });
+    }
+
+    // Validate required mother information
+    if (!parentInfo.motherName) {
+      return res.status(400).json({
+        success: false,
+        error: "Mother's name is required",
+      });
+    }
+
+    if (!parentInfo.motherphone) {
+      return res.status(400).json({
+        success: false,
+        error: "Mother's phone number is required",
+      });
+    }
+
+    // Try to find existing parent user by email first (if provided), then by phone
+    let parentUser = null;
+    
+    if (parentInfo.email) {
+      // If email is provided, search by email first
+      parentUser = await User.findOne({ email: parentInfo.email });
+    }
+    
     if (!parentUser) {
-      parentUser = await User.create({
-        email: parentInfo.email,
+      // If no user found by email OR no email provided, search by phone number
+      parentUser = await User.findOne({ phone: parentInfo.phone });
+    }
+    
+    if (!parentUser) {
+      // Create new parent user if not found by email or phone
+      const userData = {
         password: "temporary",
         role: "parent",
         firstName: parentInfo.name.split(" ")[0],
         lastName: parentInfo.name.split(" ").slice(1).join(" ") || "Parent",
         phone: parentInfo.phone,
         address: { street: parentInfo.address },
-      });
+      };
+
+      // Only add email if it's provided
+      if (parentInfo.email) {
+        userData.email = parentInfo.email;
+      }
+
+      parentUser = await User.create(userData);
     }
 
+    // Create patient with complete parent information including mother's details
     const patient = await Patient.create({
       ...patientData,
       parentId: parentUser._id,
-      parentInfo,
+      parentInfo: {
+        name: parentInfo.name, // Father's name
+        phone: parentInfo.phone, // Father's phone
+        email: parentInfo.email || null, // Email (optional)
+        motherName: parentInfo.motherName, // Mother's name
+        motherphone: parentInfo.motherphone, // Mother's phone
+        photo: parentInfo.photo,
+        relationship: parentInfo.relationship || "Guardian",
+        address: parentInfo.address,
+      },
     });
+
+    // Populate the patient data with parent information for response
+    await patient.populate('parentId', 'firstName lastName email phone');
 
     res.status(201).json({
       success: true,
-      message: "Patient and parent user created successfully",
-      data: { patient, parentUser },
+      message: "Patient registered successfully with complete parent information",
+      data: { 
+        patient,
+        parentUser: {
+          id: parentUser._id,
+          email: parentUser.email || null,
+          firstName: parentUser.firstName,
+          lastName: parentUser.lastName,
+          phone: parentUser.phone,
+        }
+      },
     });
+
   } catch (error) {
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }));
+      
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        details: validationErrors
+      });
+    }
+
+    // Handle duplicate key errors (e.g., if phone or email already exists)
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        success: false,
+        error: `A user with this ${duplicateField} already exists`,
+      });
+    }
+
     next(error);
   }
 };
+
+
 // exports.createPatient = async (req, res, next) => {
 //   try {
 //     // Check validation
@@ -359,6 +446,34 @@ exports.deletePatient = async (req, res, next) => {
     next(err);
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Un-necessary Photos;
 
 // @desc    Add patient photo
 // @route   PUT /api/patients/:id/photo

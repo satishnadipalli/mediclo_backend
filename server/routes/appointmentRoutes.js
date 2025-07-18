@@ -1,9 +1,9 @@
-const express = require("express");
-const router = express.Router();
-const { protect, authorize } = require("../middleware/authMiddleware");
-const { validateRequest } = require("../middleware/validationMiddleware");
+const express = require("express")
+const router = express.Router()
+const { protect, authorize } = require("../middleware/authMiddleware")
+const { validateRequest } = require("../middleware/validationMiddleware")
 const {
-  // Core appointment functions
+  // Existing functions
   getAppointments,
   getAppointment,
   createAppointment,
@@ -12,13 +12,9 @@ const {
   rescheduleAppointment,
   updateAppointmentStatus,
   getAppointmentsCalendarView,
-
-  // User requests
   submitAppointmentRequest,
   getPendingAppointmentRequests,
   convertRequestToAppointment,
-
-  // Validation exports
   validateAppointment,
   validateUpdateAppointment,
   validateAppointmentRequest,
@@ -26,107 +22,80 @@ const {
   getAppointmentsByDate,
   getAllUpcomingAppointmentsForTherapists,
   updateAppointmentStatusAndDetails,
-} = require("../controllers/appointmentController");
+  createMultipleAppointments,
+  updatePatientAppointmentsPayment,
+
+  // New functions for patient payment management
+  getPatientsWithAppointments,
+  processAppointmentPayment,
+} = require("../controllers/appointmentController")
 
 // ======================
 // USER ROUTES
 // ======================
-
-// User submits appointment request (must be logged in as user/parent)
-router.post(
-  "/request",
-  protect,
-  authorize("user", "parent"),
-  submitAppointmentRequest
-);
+router.post("/request", protect, authorize("user", "parent"), submitAppointmentRequest)
 
 // ======================
 // RECEPTIONIST / ADMIN ROUTES
 // ======================
+router.get("/requests/pending", protect, authorize("admin", "receptionist"), getPendingAppointmentRequests)
 
-// Fetch pending appointment requests
-router.get(
-  "/requests/pending",
-  protect,
-  authorize("admin", "receptionist"),
-  getPendingAppointmentRequests
-);
-
-// Convert appointment request to formal appointment
 router.post(
   "/convert/:formId",
   protect,
   authorize("admin", "receptionist"),
   validateFormalAppointment,
   validateRequest,
-  convertRequestToAppointment
-);
+  convertRequestToAppointment,
+)
+
+// ======================
+// PATIENT PAYMENT MANAGEMENT ROUTES (MUST COME BEFORE /:id ROUTES)
+// ======================
+
+// Get patients with appointments - MUST come before /:id route
+router.get("/with-appointments", protect, authorize("admin", "receptionist"), getPatientsWithAppointments)
+
+// Process payment for appointments - MUST come before /:id route
+router.post("/process-payment", protect, authorize("admin", "receptionist"), processAppointmentPayment)
 
 // ======================
 // APPOINTMENT CRUD
 // ======================
+router.get("/", protect, authorize("admin", "receptionist", "therapist"), getAppointments)
 
-// Get all appointments
-router.get(
-  "/",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  getAppointments
-);
+// Single appointment creation
+router.post("/", createAppointment)
 
-// Create formal appointment (receptionist / admin)
-router.post(
-  "/",
-  // protect,
-  // authorize("admin", "receptionist"),
-  // validateAppointment,
-  // validateRequest,
-  createAppointment
-);
+// Multiple appointments creation
+router.post("/multiple", protect, authorize("admin", "receptionist"), createMultipleAppointments)
 
-// Get today's calendar view
-router.get(
-  "/calendar",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  getAppointmentsCalendarView
-);
-// Get by date
-router.get(
-  "/by-date",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  getAppointmentsByDate
-);
+// Bulk payment update for patient appointments
+router.put("/patient/payment", protect, authorize("admin", "receptionist"), updatePatientAppointmentsPayment)
 
+router.get("/calendar", protect, authorize("admin", "receptionist", "therapist"), getAppointmentsCalendarView)
 
-router.get('/upcoming',getAllUpcomingAppointmentsForTherapists);
-// Get, update, delete single appointment
+router.get("/by-date", protect, authorize("admin", "receptionist", "therapist"), getAppointmentsByDate)
+
+router.get("/upcoming", getAllUpcomingAppointmentsForTherapists)
+
+// ======================
+// INDIVIDUAL APPOINTMENT ROUTES (MUST COME LAST)
+// ======================
 router
   .route("/:id")
   .get(protect, authorize("admin", "receptionist", "therapist"), getAppointment)
-  .put(
-    // authorize("admin", "receptionist", "therapist"),
-    updateAppointment
-  )
-  .delete(protect, authorize("admin", "receptionist"), deleteAppointment);
+  .put(updateAppointment)
+  .delete(protect, authorize("admin", "receptionist"), deleteAppointment)
+
+router.put("/updateappointment/:id", updateAppointmentStatusAndDetails)
+
+router.put("/:id/reschedule", protect, authorize("admin", "receptionist", "therapist"), rescheduleAppointment)
+
+router.put("/:id/status", protect, authorize("admin", "receptionist", "therapist"), updateAppointmentStatus)
+
+module.exports = router
 
 
-router.put('/updateappointment/:id',updateAppointmentStatusAndDetails)
-// Reschedule appointment
-router.put(
-  "/:id/reschedule",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  rescheduleAppointment
-);
 
-// Update appointment status
-router.put(
-  "/:id/status",
-  protect,
-  authorize("admin", "receptionist", "therapist"),
-  updateAppointmentStatus
-);
 
-module.exports = router;

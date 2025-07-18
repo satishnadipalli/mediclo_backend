@@ -12,11 +12,6 @@ const {
   updatePatientValidation,
   addNoteValidation,
   addAssessmentValidation,
-  updatePatientPhoto,
-  updateBirthCertificate,
-  updateParentPhoto,
-  addMedicalRecord,
-  updateAadharCard,
 } = require("../controllers/patientController");
 const { validateRequest } = require("../middleware/validationMiddleware");
 const Patient = require("../models/Patient");
@@ -99,12 +94,6 @@ router
     }
   });
 
-// Document upload routes
-router.route("/:id/photo").put(updatePatientPhoto);
-router.route("/:id/birth-certificate").put(updateBirthCertificate);
-router.route("/:id/aadhar-card").put(updateAadharCard);
-router.route("/:id/parent-photo").put(updateParentPhoto);
-router.route("/:id/medical-records").post(addMedicalRecord);
 
 module.exports = router;
 
