@@ -5,7 +5,6 @@ const UserSchema = new mongoose.Schema(
   {
     email: {
       type: String,
-      
     },
     password: {
       type: String,
@@ -27,6 +26,10 @@ const UserSchema = new mongoose.Schema(
       required: [true, "Please add a last name"],
     },
     phone: {
+      type: String,
+    },
+    //designation(for therapist only)
+    designation: {
       type: String,
     },
     address: {
