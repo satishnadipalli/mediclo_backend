@@ -797,25 +797,199 @@ exports.getAppointments = async (req, res) => {
 // @desc    Get today's appointments in calendar format with fix time slots (45 minutes)
 // @route   GET /api/appointments/calendar
 // @access  Private (Admin, Receptionist, Therapist)
+// exports.getAppointmentsCalendarView = async (req, res) => {
+//   try {
+//     // Get date from query params or default to today
+//     const requestedDate = req.query.date;
+//     let dateStart, dateEnd;
+
+//     if (requestedDate) {
+//       // Use the requested date
+//       const targetDate = new Date(requestedDate);
+//       dateStart = new Date(targetDate.setHours(0, 0, 0, 0));
+//       dateEnd = new Date(targetDate.setHours(23, 59, 59, 999));
+//     } else {
+//       // Default to today
+//       const now = new Date();
+//       dateStart = new Date(now.setHours(0, 0, 0, 0));
+//       dateEnd = new Date(now.setHours(23, 59, 59, 999));
+//     }
+
+//     // Base query
+//     const query = {
+//       date: {
+//         $gte: dateStart,
+//         $lte: dateEnd,
+//       },
+//     };
+
+//     // If therapist, limit to their appointments
+//     if (req.user.role === "therapist") {
+//       query.therapistId = req.user._id;
+//     }
+
+//     // Fetch all appointments for the specified date with full population
+//     const appointments = await Appointment.find(query)
+//       .populate(
+//         "therapistId",
+//         "firstName lastName email specialization designation"
+//       )
+//       .populate(
+//         "patientId",
+//         "fullName childName age dateOfBirth childDOB gender childGender"
+//       )
+//       .populate("serviceId", "name price duration");
+
+//     const timeSlots = [
+//       "09:15 AM",
+//       "10:00 AM",
+//       "10:45 AM",
+//       "11:30 AM",
+//       "12:15 PM",
+//       "01:00 PM",
+//       "01:45 PM",
+//       "02:30 PM",
+//       "03:15 PM",
+//       "04:00 PM",
+//       "04:45 PM",
+//       "05:30 PM",
+//       "06:15 PM",
+//       "07:00 PM",
+//     ];
+
+//     const calendar = {};
+
+//     // Loop through appointments
+//     appointments.forEach((appt) => {
+//       const therapist = appt.therapistId;
+//       if (!therapist || !therapist.firstName || !therapist.lastName) return;
+
+//       const therapistName = `Dr. ${therapist.firstName} ${therapist.lastName}`;
+//       const therapistDesignation = therapist.designation || "Therapist";
+//       const startFormatted = appt.startTime;
+
+//       // Initialize calendar slots for this therapist
+//       if (!calendar[therapistName]) {
+//         calendar[therapistName] = {};
+//         timeSlots.forEach((slot) => {
+//           calendar[therapistName][slot] = null;
+//         });
+//       }
+
+//       console.log("Processing appointment:", appt._id);
+
+//       // Fill in if the slot is in list and still empty
+//       if (
+//         timeSlots.includes(startFormatted) &&
+//         !calendar[therapistName][startFormatted]
+//       ) {
+//         // Extract patient name with fallback logic
+//         const patientName =
+//           appt.patientName ||
+//           appt.patientId?.fullName ||
+//           appt.patientId?.childName ||
+//           "N/A";
+
+//         // Calculate duration
+//         const duration = calculateDuration(appt.startTime, appt.endTime);
+
+//         // Build the appointment object with all required data
+//         calendar[therapistName][startFormatted] = {
+//           id: appt._id.toString(),
+//           patientId: appt.patientId?._id?.toString() || null,
+//           doctorId: therapist._id.toString(),
+//           patientName: patientName,
+//           therapistDesignation,
+//           type: appt.type || "initial assessment",
+//           status: appt.status || "scheduled",
+//           duration: duration,
+
+//           // Payment information (required by frontend)
+//           payment: {
+//             amount: appt.payment?.amount || 0,
+//             status: appt.payment?.status || "pending",
+//             method: appt.payment?.method || "not_specified",
+//           },
+
+//           // Session information (required by frontend)
+//           totalSessions: appt.totalSessions || 0,
+//           sessionsPaid: appt.sessionsPaid || 0,
+//           sessionsCompleted: appt.sessionsCompleted || 0,
+
+//           // Contact information (required by frontend)
+//           phone: appt.phone || "N/A",
+//           email: appt.email || "N/A",
+
+//           // Additional appointment details
+//           notes: appt.notes || "",
+//           consultationMode: appt.consultationMode || "in-person",
+//           fatherName: appt.fatherName || "",
+//           address: appt.address || "",
+
+//           // Service information if available
+//           serviceInfo: appt.serviceId
+//             ? {
+//                 name: appt.serviceId.name,
+//                 price: appt.serviceId.price,
+//                 duration: appt.serviceId.duration,
+//               }
+//             : null,
+
+//           // Timestamps
+//           createdAt: appt.createdAt,
+//           updatedAt: appt.updatedAt,
+
+//           // Additional flags
+//           consent: appt.consent || false,
+//           isDraft: appt.isDraft || false,
+//         };
+//       }
+//     });
+
+//     // Add empty slots for doctors who don't have appointments but should appear in calendar
+//     // This ensures all active therapists appear in the calendar view
+//     if (req.user.role === "admin" || req.user.role === "receptionist") {
+//       // You might want to fetch all active therapists and ensure they have slots
+//       // This is optional based on your requirements
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       data: calendar,
+//       meta: {
+//         date: requestedDate || dateStart.toISOString().split("T")[0],
+//         totalAppointments: appointments.length,
+//         timeSlots: timeSlots,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Calendar fetch error:", error);
+//     res.status(500).json({
+//       success: false,
+//       error: "Server Error",
+//       message: error.message,
+//     });
+//   }
+// };
+
+// @desc    Get today's appointments in calendar format with fix time slots (45 minutes)
+// @route   GET /api/appointments/calendar
+// @access  Private (Admin, Receptionist, Therapist)
 exports.getAppointmentsCalendarView = async (req, res) => {
   try {
-    // Get date from query params or default to today
     const requestedDate = req.query.date;
     let dateStart, dateEnd;
 
     if (requestedDate) {
-      // Use the requested date
       const targetDate = new Date(requestedDate);
       dateStart = new Date(targetDate.setHours(0, 0, 0, 0));
       dateEnd = new Date(targetDate.setHours(23, 59, 59, 999));
     } else {
-      // Default to today
       const now = new Date();
       dateStart = new Date(now.setHours(0, 0, 0, 0));
       dateEnd = new Date(now.setHours(23, 59, 59, 999));
     }
 
-    // Base query
     const query = {
       date: {
         $gte: dateStart,
@@ -823,12 +997,10 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       },
     };
 
-    // If therapist, limit to their appointments
     if (req.user.role === "therapist") {
       query.therapistId = req.user._id;
     }
 
-    // Fetch all appointments for the specified date with full population
     const appointments = await Appointment.find(query)
       .populate(
         "therapistId",
@@ -859,16 +1031,33 @@ exports.getAppointmentsCalendarView = async (req, res) => {
 
     const calendar = {};
 
-    // Loop through appointments
+    // First, initialize calendar with therapists even if they have no appointments
+    let therapists = [];
+    if (req.user.role === "admin" || req.user.role === "receptionist") {
+      therapists = await User.find({
+        role: "therapist",
+        isActive: true,
+      }).select("firstName lastName designation");
+
+      therapists.forEach((therapist) => {
+        const therapistName = `Dr. ${therapist.firstName} ${
+          therapist.lastName
+        } (${therapist.designation || "N/A"})`;
+        calendar[therapistName] = {};
+        timeSlots.forEach((slot) => {
+          calendar[therapistName][slot] = null;
+        });
+      });
+    }
+
     appointments.forEach((appt) => {
       const therapist = appt.therapistId;
       if (!therapist || !therapist.firstName || !therapist.lastName) return;
 
-      const therapistName = `Dr. ${therapist.firstName} ${therapist.lastName}`;
-      const therapistDesignation = therapist.designation || "Therapist";
-      const startFormatted = appt.startTime;
+      const therapistName = `Dr. ${therapist.firstName} ${
+        therapist.lastName
+      } (${therapist.designation || "N/A"})`;
 
-      // Initialize calendar slots for this therapist
       if (!calendar[therapistName]) {
         calendar[therapistName] = {};
         timeSlots.forEach((slot) => {
@@ -876,57 +1065,40 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         });
       }
 
-      console.log("Processing appointment:", appt._id);
-
-      // Fill in if the slot is in list and still empty
+      const startFormatted = appt.startTime;
       if (
         timeSlots.includes(startFormatted) &&
         !calendar[therapistName][startFormatted]
       ) {
-        // Extract patient name with fallback logic
         const patientName =
           appt.patientName ||
           appt.patientId?.fullName ||
           appt.patientId?.childName ||
           "N/A";
-
-        // Calculate duration
         const duration = calculateDuration(appt.startTime, appt.endTime);
 
-        // Build the appointment object with all required data
         calendar[therapistName][startFormatted] = {
           id: appt._id.toString(),
           patientId: appt.patientId?._id?.toString() || null,
           doctorId: therapist._id.toString(),
           patientName: patientName,
-          therapistDesignation,
           type: appt.type || "initial assessment",
           status: appt.status || "scheduled",
           duration: duration,
-
-          // Payment information (required by frontend)
           payment: {
             amount: appt.payment?.amount || 0,
             status: appt.payment?.status || "pending",
             method: appt.payment?.method || "not_specified",
           },
-
-          // Session information (required by frontend)
           totalSessions: appt.totalSessions || 0,
           sessionsPaid: appt.sessionsPaid || 0,
           sessionsCompleted: appt.sessionsCompleted || 0,
-
-          // Contact information (required by frontend)
           phone: appt.phone || "N/A",
           email: appt.email || "N/A",
-
-          // Additional appointment details
           notes: appt.notes || "",
           consultationMode: appt.consultationMode || "in-person",
           fatherName: appt.fatherName || "",
           address: appt.address || "",
-
-          // Service information if available
           serviceInfo: appt.serviceId
             ? {
                 name: appt.serviceId.name,
@@ -934,24 +1106,13 @@ exports.getAppointmentsCalendarView = async (req, res) => {
                 duration: appt.serviceId.duration,
               }
             : null,
-
-          // Timestamps
           createdAt: appt.createdAt,
           updatedAt: appt.updatedAt,
-
-          // Additional flags
           consent: appt.consent || false,
           isDraft: appt.isDraft || false,
         };
       }
     });
-
-    // Add empty slots for doctors who don't have appointments but should appear in calendar
-    // This ensures all active therapists appear in the calendar view
-    if (req.user.role === "admin" || req.user.role === "receptionist") {
-      // You might want to fetch all active therapists and ensure they have slots
-      // This is optional based on your requirements
-    }
 
     res.status(200).json({
       success: true,
@@ -971,6 +1132,19 @@ exports.getAppointmentsCalendarView = async (req, res) => {
     });
   }
 };
+
+function calculateDuration(startTime, endTime) {
+  const parseTime = (str) => {
+    const [time, modifier] = str.split(" ");
+    let [hours, minutes] = time.split(":").map(Number);
+    if (modifier === "PM" && hours !== 12) hours += 12;
+    if (modifier === "AM" && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+  const start = parseTime(startTime);
+  const end = parseTime(endTime);
+  return end - start;
+}
 
 // Updated helper to support 12-hour format with AM/PM
 function calculateDuration(startTime, endTime) {
