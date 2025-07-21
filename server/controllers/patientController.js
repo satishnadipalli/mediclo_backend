@@ -17,12 +17,11 @@ exports.createPatientValidation = [
   body("parentId", "Parent ID is required").notEmpty(),
   body("parentInfo.name", "Parent/Guardian name is required").notEmpty(),
   body("parentInfo.phone", "Parent contact number is required").notEmpty(),
-  body("parentInfo.email", "Invalid email format").optional().isEmail(),
+  // body("parentInfo.email", "Invalid email format").optional().isEmail(),
   body("parentInfo.address", "Address is required").notEmpty(),
   body("parentInfo.relationship", "Relationship to child is required")
     .optional()
     .isIn(["Father", "Mother", "Guardian", "Other"]),
-
 ];
 
 exports.updatePatientValidation = [
@@ -111,16 +110,15 @@ exports.getPatients = async (req, res, next) => {
       const future = relevant.find((a) => a.date > new Date());
       const past = [...relevant].reverse().find((a) => a.date <= new Date());
 
-
-      console.log(future,"futrei")
+      console.log(future, "futrei");
 
       return {
         ...patient,
         latestAppointment: future
           ? {
               id: future._id,
-              method:future?.payment?.method,
-              amount:future?.amount?.amount,
+              method: future?.payment?.method,
+              amount: future?.amount?.amount,
               appointmentDate: future?.date,
               appointmentSlot: future?.startTime,
               paymentStatus: future?.payment?.status || "pending",
@@ -244,17 +242,16 @@ exports.createPatient = async (req, res, next) => {
     // Try to find existing parent user by email first (if provided), then by phone
     let parentUser = null;
 
-    
     if (parentInfo.email) {
       // If email is provided, search by email first
       parentUser = await User.findOne({ email: parentInfo.email });
     }
-    
+
     if (!parentUser) {
       // If no user found by email OR no email provided, search by phone number
       parentUser = await User.findOne({ phone: parentInfo.phone });
     }
-    
+
     if (!parentUser) {
       // Create new parent user if not found by email or phone
       const userData = {
@@ -271,9 +268,9 @@ exports.createPatient = async (req, res, next) => {
         userData.email = parentInfo.email;
       }
 
-      console.log("before")
+      console.log("before");
       parentUser = await User.create(userData);
-      console.log("after")
+      console.log("after");
     }
 
     // Create patient with complete parent information including mother's details
@@ -293,12 +290,13 @@ exports.createPatient = async (req, res, next) => {
     });
 
     // Populate the patient data with parent information for response
-    await patient.populate('parentId', 'firstName lastName email phone');
+    await patient.populate("parentId", "firstName lastName email phone");
 
     res.status(201).json({
       success: true,
-      message: "Patient registered successfully with complete parent information",
-      data: { 
+      message:
+        "Patient registered successfully with complete parent information",
+      data: {
         patient,
         parentUser: {
           id: parentUser._id,
@@ -306,24 +304,21 @@ exports.createPatient = async (req, res, next) => {
           firstName: parentUser.firstName,
           lastName: parentUser.lastName,
           phone: parentUser.phone,
-        }
+        },
       },
     });
-
   } catch (error) {
     // Handle mongoose validation errors
-    console.log(error);
-    
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => ({
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map((err) => ({
         field: err.path,
-        message: err.message
+        message: err.message,
       }));
-      
+
       return res.status(400).json({
         success: false,
         error: "Validation failed",
-        details: validationErrors
+        details: validationErrors,
       });
     }
 
@@ -339,7 +334,6 @@ exports.createPatient = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // exports.createPatient = async (req, res, next) => {
 //   try {
@@ -452,32 +446,6 @@ exports.deletePatient = async (req, res, next) => {
     next(err);
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 //Un-necessary Photos;
 

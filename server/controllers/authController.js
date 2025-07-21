@@ -46,19 +46,17 @@ exports.changePasswordValidation = [
 // @access  Admin only (for staff), or public for parent
 exports.register = async (req, res, next) => {
   try {
-
-    console.log("Hello");
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log("Hello");
       return res.status(400).json({
         success: false,
         errors: errors.array(),
       });
     }
 
-    const { email, password, firstName, lastName, role, phone } = req.body;
+    const { email, password, firstName, lastName, role, phone, designation } =
+      req.body;
 
     //Find existing user
     const userExists = await User.findOne({ email });
@@ -77,6 +75,7 @@ exports.register = async (req, res, next) => {
       lastName,
       role: role || "parent",
       phone,
+      designation,
     });
 
     // Create token
@@ -91,6 +90,7 @@ exports.register = async (req, res, next) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        designation: user.designation,
         membership: user.membership,
       },
     });
