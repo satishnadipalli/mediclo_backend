@@ -231,9 +231,6 @@ exports.convertRequestToAppointment = async (req, res) => {
   }
 };
 
-
-
-
 // Above Controllers are un-necessary
 // @desc    Create formal appointment
 // @route   POST /api/appointments
@@ -542,7 +539,11 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
       }
 
       // Auto-update payment status to paid if completing and amount is set
-      if (updates.payment && updates.payment.amount > 0 && !updates.payment.status) {
+      if (
+        updates.payment &&
+        updates.payment.amount > 0 &&
+        !updates.payment.status
+      ) {
         updates.payment.status = "paid";
       }
     }
@@ -583,21 +584,21 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
 // Enhanced reschedule function with availability checking
 exports.rescheduleAppointment = async (req, res) => {
   try {
-    const { date, startTime, endTime, therapistId, reason } = req.body
+    const { date, startTime, endTime, therapistId, reason } = req.body;
 
     if (!date || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
         error: "Date, startTime, and endTime are required",
-      })
+      });
     }
 
-    const appointment = await Appointment.findById(req.params.id)
+    const appointment = await Appointment.findById(req.params.id);
     if (!appointment) {
       return res.status(404).json({
         success: false,
         error: "Appointment not found",
-      })
+      });
     }
 
     // Check for conflicts with the new time slot
@@ -620,41 +621,43 @@ exports.rescheduleAppointment = async (req, res) => {
           endTime: { $lte: endTime },
         },
       ],
-    })
+    });
 
     if (conflictCheck) {
       return res.status(400).json({
         success: false,
         error: "Selected time slot is not available",
-      })
+      });
     }
 
     // If changing therapist, validate therapist
     if (therapistId && therapistId !== appointment.therapistId.toString()) {
-      const therapist = await User.findById(therapistId)
+      const therapist = await User.findById(therapistId);
       if (!therapist || therapist.role !== "therapist") {
         return res.status(404).json({
           success: false,
           error: "Therapist not found",
-        })
+        });
       }
-      appointment.therapistId = therapistId
+      appointment.therapistId = therapistId;
     }
 
     // Update appointment fields
-    appointment.date = new Date(date)
-    appointment.startTime = startTime
-    appointment.endTime = endTime
-    appointment.status = "rescheduled"
-    appointment.notes = `${appointment.notes || ""}\nRescheduled: ${reason || ""}`
+    appointment.date = new Date(date);
+    appointment.startTime = startTime;
+    appointment.endTime = endTime;
+    appointment.status = "rescheduled";
+    appointment.notes = `${appointment.notes || ""}\nRescheduled: ${
+      reason || ""
+    }`;
 
-    await appointment.save()
+    await appointment.save();
 
     // Fetch related service and therapist data for email
     const [service, therapist] = await Promise.all([
       Service.findById(appointment.serviceId),
       User.findById(appointment.therapistId),
-    ])
+    ]);
 
     // Send reschedule email
     try {
@@ -670,22 +673,22 @@ exports.rescheduleAppointment = async (req, res) => {
           therapist: therapist?.fullName || "Therapist",
           reason,
         }),
-      })
-      console.log("Reschedule email sent to:", appointment.email)
+      });
+      console.log("Reschedule email sent to:", appointment.email);
     } catch (err) {
-      console.error("Failed to send reschedule email:", err.message)
+      console.error("Failed to send reschedule email:", err.message);
     }
 
     res.status(200).json({
       success: true,
       message: "Appointment rescheduled successfully",
       data: appointment,
-    })
+    });
   } catch (err) {
-    console.error("Reschedule error:", err)
-    res.status(500).json({ success: false, error: "Server Error" })
+    console.error("Reschedule error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
   }
-}
+};
 
 // @desc    Delete appointment
 // @route   DELETE /api/appointments/:id
@@ -711,7 +714,6 @@ exports.deleteAppointment = async (req, res) => {
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };
-
 
 // @desc    Get all appointments
 // @route   GET /api/appointments
@@ -828,7 +830,10 @@ exports.getAppointmentsCalendarView = async (req, res) => {
 
     // Fetch all appointments for the specified date with full population
     const appointments = await Appointment.find(query)
-      .populate("therapistId", "firstName lastName email specialization")
+      .populate(
+        "therapistId",
+        "firstName lastName email specialization designation"
+      )
       .populate(
         "patientId",
         "fullName childName age dateOfBirth childDOB gender childGender"
@@ -860,6 +865,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       if (!therapist || !therapist.firstName || !therapist.lastName) return;
 
       const therapistName = `Dr. ${therapist.firstName} ${therapist.lastName}`;
+      const therapistDesignation = therapist.designation || "Therapist";
       const startFormatted = appt.startTime;
 
       // Initialize calendar slots for this therapist
@@ -893,6 +899,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
           patientId: appt.patientId?._id?.toString() || null,
           doctorId: therapist._id.toString(),
           patientName: patientName,
+          therapistDesignation,
           type: appt.type || "initial assessment",
           status: appt.status || "scheduled",
           duration: duration,
@@ -1188,10 +1195,9 @@ exports.updateAppointmentStatus = async (req, res) => {
       });
     }
 
-
     // If cancelled, delete the appointment
     if (status === "cancelled") {
-      console.log("Hello  i am working")
+      console.log("Hello  i am working");
       await appointment.deleteOne();
       return res.status(200).json({
         success: true,
@@ -1252,8 +1258,6 @@ exports.getAllUpcomingAppointmentsForTherapists = async (req, res) => {
   }
 };
 
-
-
 exports.createMultipleAppointments = async (req, res) => {
   try {
     const {
@@ -1275,43 +1279,43 @@ exports.createMultipleAppointments = async (req, res) => {
       consultationMode,
       consent,
       totalSessions,
-    } = req.body
+    } = req.body;
 
     // Validate required fields
     if (!dates || !Array.isArray(dates) || dates.length === 0) {
       return res.status(400).json({
         success: false,
         error: "At least one date is required",
-      })
+      });
     }
 
     // Validate service
-    const service = await Service.findById(serviceId)
+    const service = await Service.findById(serviceId);
     if (!service) {
       return res.status(404).json({
         success: false,
         error: "Service not found!",
-      })
+      });
     }
 
     // Validate therapist
-    const therapist = await User.findById(therapistId)
+    const therapist = await User.findById(therapistId);
     if (!therapist || therapist.role !== "therapist") {
       return res.status(404).json({
         success: false,
         error: "Therapist not found!",
-      })
+      });
     }
 
     // Determine patient
-    let patient
+    let patient;
     if (patientId) {
-      patient = await Patient.findById(patientId)
+      patient = await Patient.findById(patientId);
       if (!patient) {
         return res.status(404).json({
           success: false,
           error: "Patient not found!",
-        })
+        });
       }
     } else {
       // Create new patient if not exists
@@ -1323,7 +1327,7 @@ exports.createMultipleAppointments = async (req, res) => {
           email: email,
           relationship: "Father",
         },
-      })
+      });
     }
 
     // Check for conflicts across all dates
@@ -1345,14 +1349,18 @@ exports.createMultipleAppointments = async (req, res) => {
           endTime: { $lte: endTime },
         },
       ],
-    })
+    });
 
     if (conflictCheck.length > 0) {
-      const conflictDates = conflictCheck.map((appt) => appt.date.toISOString().split("T")[0])
+      const conflictDates = conflictCheck.map(
+        (appt) => appt.date.toISOString().split("T")[0]
+      );
       return res.status(400).json({
         success: false,
-        error: `Therapist already has appointments on: ${conflictDates.join(", ")}`,
-      })
+        error: `Therapist already has appointments on: ${conflictDates.join(
+          ", "
+        )}`,
+      });
     }
 
     // Create appointments for all dates
@@ -1383,14 +1391,16 @@ exports.createMultipleAppointments = async (req, res) => {
         status: "scheduled",
         assignedBy: req?.user?._id,
         assignedAt: new Date(),
-      })
-    })
+      });
+    });
 
-    const createdAppointments = await Promise.all(appointmentPromises)
+    const createdAppointments = await Promise.all(appointmentPromises);
 
     // Send confirmation email for all appointments
     try {
-      const appointmentDates = dates.map((date) => new Date(date).toLocaleDateString()).join(", ")
+      const appointmentDates = dates
+        .map((date) => new Date(date).toLocaleDateString())
+        .join(", ");
 
       await sendEmail({
         to: email,
@@ -1405,10 +1415,10 @@ exports.createMultipleAppointments = async (req, res) => {
           consultationMode,
           appointmentCount: dates.length,
         }),
-      })
-      console.log("Confirmation email sent to:", email)
+      });
+      console.log("Confirmation email sent to:", email);
     } catch (emailErr) {
-      console.error("Failed to send confirmation email:", emailErr.message)
+      console.error("Failed to send confirmation email:", emailErr.message);
     }
 
     return res.status(201).json({
@@ -1419,40 +1429,40 @@ exports.createMultipleAppointments = async (req, res) => {
         patient: patient,
         appointmentCount: dates.length,
       },
-    })
+    });
   } catch (err) {
-    console.error("Create multiple appointments error:", err)
+    console.error("Create multiple appointments error:", err);
     res.status(500).json({
       success: false,
       error: "Server Error",
       message: err.message,
-    })
+    });
   }
-}
+};
 
 // Update the existing updateAppointment function to handle bulk payment updates
 exports.updatePatientAppointmentsPayment = async (req, res) => {
   try {
-    const { patientId, paymentStatus, paymentMethod, paymentAmount } = req.body
+    const { patientId, paymentStatus, paymentMethod, paymentAmount } = req.body;
 
     if (!patientId) {
       return res.status(400).json({
         success: false,
         error: "Patient ID is required",
-      })
+      });
     }
 
     // Find all scheduled appointments for this patient
     const appointments = await Appointment.find({
       patientId: patientId,
       status: { $in: ["scheduled", "completed"] },
-    })
+    });
 
     if (appointments.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No appointments found for this patient",
-      })
+      });
     }
 
     // Update all appointments
@@ -1462,19 +1472,22 @@ exports.updatePatientAppointmentsPayment = async (req, res) => {
         {
           "payment.status": paymentStatus || appointment.payment.status,
           "payment.method": paymentMethod || appointment.payment.method,
-          "payment.amount": paymentAmount !== undefined ? paymentAmount : appointment.payment.amount,
+          "payment.amount":
+            paymentAmount !== undefined
+              ? paymentAmount
+              : appointment.payment.amount,
         },
-        { new: true, runValidators: true },
-      )
-    })
+        { new: true, runValidators: true }
+      );
+    });
 
-    const updatedAppointments = await Promise.all(updatePromises)
+    const updatedAppointments = await Promise.all(updatePromises);
 
     // Fetch updated patient data for response
-    let patients = await Patient.find({}).lean()
+    let patients = await Patient.find({}).lean();
     const allAppointments = await Appointment.find({
       patientId: { $in: patients.map((p) => p._id) },
-    }).sort({ date: 1 })
+    }).sort({ date: 1 });
 
     const timeOrder = [
       "09:15 AM",
@@ -1491,14 +1504,16 @@ exports.updatePatientAppointmentsPayment = async (req, res) => {
       "05:30 PM",
       "06:15 PM",
       "07:00 PM",
-    ]
+    ];
 
     patients = patients.map((patient) => {
       const relevantAppointments = allAppointments.filter(
-        (appt) => appt.patientId.toString() === patient._id.toString(),
-      )
-      const future = relevantAppointments.find((a) => a.date > new Date())
-      const past = [...relevantAppointments].reverse().find((a) => a.date <= new Date())
+        (appt) => appt.patientId.toString() === patient._id.toString()
+      );
+      const future = relevantAppointments.find((a) => a.date > new Date());
+      const past = [...relevantAppointments]
+        .reverse()
+        .find((a) => a.date <= new Date());
 
       return {
         ...patient,
@@ -1514,24 +1529,31 @@ exports.updatePatientAppointmentsPayment = async (req, res) => {
           : null,
         lastVisit: past ? past.date : null,
         age: patient.dateOfBirth
-          ? Math.floor((new Date() - new Date(patient.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
+          ? Math.floor(
+              (new Date() - new Date(patient.dateOfBirth)) /
+                (365.25 * 24 * 60 * 60 * 1000)
+            )
           : null,
-      }
-    })
+      };
+    });
 
     patients.sort((a, b) => {
       const aDate = a.latestAppointment?.appointmentDate
         ? new Date(a.latestAppointment.appointmentDate)
-        : Number.POSITIVE_INFINITY
+        : Number.POSITIVE_INFINITY;
       const bDate = b.latestAppointment?.appointmentDate
         ? new Date(b.latestAppointment.appointmentDate)
-        : Number.POSITIVE_INFINITY
-      if (aDate < bDate) return -1
-      if (aDate > bDate) return 1
-      const aSlotIndex = timeOrder.indexOf(a.latestAppointment?.appointmentSlot || "")
-      const bSlotIndex = timeOrder.indexOf(b.latestAppointment?.appointmentSlot || "")
-      return aSlotIndex - bSlotIndex
-    })
+        : Number.POSITIVE_INFINITY;
+      if (aDate < bDate) return -1;
+      if (aDate > bDate) return 1;
+      const aSlotIndex = timeOrder.indexOf(
+        a.latestAppointment?.appointmentSlot || ""
+      );
+      const bSlotIndex = timeOrder.indexOf(
+        b.latestAppointment?.appointmentSlot || ""
+      );
+      return aSlotIndex - bSlotIndex;
+    });
 
     return res.status(200).json({
       success: true,
@@ -1541,36 +1563,36 @@ exports.updatePatientAppointmentsPayment = async (req, res) => {
         patients,
         updateCount: updatedAppointments.length,
       },
-    })
+    });
   } catch (err) {
-    console.error("Update patient appointments payment error:", err)
+    console.error("Update patient appointments payment error:", err);
     return res.status(500).json({
       success: false,
       error: "Server Error",
       message: err.message,
-    })
+    });
   }
-}
+};
 
 // Get payment summary for dashboard
 exports.getPaymentSummary = async (req, res) => {
   try {
-    const totalPatients = await Patient.countDocuments()
+    const totalPatients = await Patient.countDocuments();
 
-    const appointments = await Appointment.find({}).lean()
+    const appointments = await Appointment.find({}).lean();
 
     const summary = appointments.reduce(
       (acc, apt) => {
         if (apt.payment?.status === "paid") {
-          acc.totalRevenue += apt.payment.amount
-          acc.completedPayments += 1
+          acc.totalRevenue += apt.payment.amount;
+          acc.completedPayments += 1;
         } else if (apt.payment?.status === "partial") {
-          acc.totalRevenue += apt.payment.paidAmount || 0
-          acc.partialPayments += 1
+          acc.totalRevenue += apt.payment.paidAmount || 0;
+          acc.partialPayments += 1;
         } else if (apt.payment?.status === "pending") {
-          acc.pendingPayments += 1
+          acc.pendingPayments += 1;
         }
-        return acc
+        return acc;
       },
       {
         totalPatients,
@@ -1578,27 +1600,27 @@ exports.getPaymentSummary = async (req, res) => {
         pendingPayments: 0,
         completedPayments: 0,
         partialPayments: 0,
-      },
-    )
+      }
+    );
 
     res.json({
       success: true,
       data: summary,
-    })
+    });
   } catch (error) {
-    console.error("Error fetching payment summary:", error)
+    console.error("Error fetching payment summary:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch payment summary",
       error: error.message,
-    })
+    });
   }
-}
+};
 
 exports.getPatientsWithAppointments = async (req, res) => {
   try {
     // Fetch all patients
-    const patients = await Patient.find({}).lean()
+    const patients = await Patient.find({}).lean();
 
     // For each patient, get their appointments with payment details
     const patientsWithAppointments = await Promise.all(
@@ -1609,12 +1631,11 @@ exports.getPatientsWithAppointments = async (req, res) => {
           .populate("serviceId", "name price")
           .populate("therapistId", "firstName")
           .sort({ date: -1 })
-          .lean()
+          .lean();
 
-        console.log(appointments)
+        console.log(appointments);
         // Transform appointments to include payment details
         const transformedAppointments = appointments.map((apt) => ({
-
           _id: apt._id,
           date: apt.date,
           startTime: apt.startTime,
@@ -1638,33 +1659,36 @@ exports.getPatientsWithAppointments = async (req, res) => {
           totalSessions: apt.totalSessions || 1,
           sessionsCompleted: apt.sessionsCompleted || 0,
           sessionsPaid: apt.sessionsPaid || 0,
-        }))
+        }));
 
         // Calculate payment summary
-        const totalAppointments = transformedAppointments.length
-        const completedAppointments = transformedAppointments.filter((apt) => apt.status === "completed").length
+        const totalAppointments = transformedAppointments.length;
+        const completedAppointments = transformedAppointments.filter(
+          (apt) => apt.status === "completed"
+        ).length;
 
         const pendingPayments = transformedAppointments.filter(
-          (apt) => apt.payment.status === "pending" || apt.payment.status === "partial",
-        ).length
+          (apt) =>
+            apt.payment.status === "pending" || apt.payment.status === "partial"
+        ).length;
 
         const totalOwed = transformedAppointments.reduce((sum, apt) => {
           if (apt.payment.status === "pending") {
-            return sum + apt.payment.amount
+            return sum + apt.payment.amount;
           } else if (apt.payment.status === "partial") {
-            return sum + (apt.payment.amount - apt.payment.paidAmount)
+            return sum + (apt.payment.amount - apt.payment.paidAmount);
           }
-          return sum
-        }, 0)
+          return sum;
+        }, 0);
 
         const totalPaid = transformedAppointments.reduce((sum, apt) => {
           if (apt.payment.status === "paid") {
-            return sum + apt.payment.amount
+            return sum + apt.payment.amount;
           } else if (apt.payment.status === "partial") {
-            return sum + apt.payment.paidAmount
+            return sum + apt.payment.paidAmount;
           }
-          return sum
-        }, 0)
+          return sum;
+        }, 0);
 
         return {
           ...patient,
@@ -1674,81 +1698,96 @@ exports.getPatientsWithAppointments = async (req, res) => {
           pendingPayments,
           totalOwed,
           totalPaid,
-        }
-      }),
-    )
+        };
+      })
+    );
 
     res.json({
       success: true,
       data: patientsWithAppointments,
-    })
+    });
   } catch (error) {
-    console.error("Error fetching patients with appointments:", error)
+    console.error("Error fetching patients with appointments:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch patient data",
       error: error.message,
-    })
+    });
   }
-}
+};
 
 // Add this new function to process payments
 exports.processAppointmentPayment = async (req, res) => {
   try {
-    const { patientId, appointmentIds, paymentAmount, paymentMethod, paymentType } = req.body
+    const {
+      patientId,
+      appointmentIds,
+      paymentAmount,
+      paymentMethod,
+      paymentType,
+    } = req.body;
 
     // Validate input
-    if (!appointmentIds || appointmentIds.length === 0 || !paymentAmount || paymentAmount <= 0) {
+    if (
+      !appointmentIds ||
+      appointmentIds.length === 0 ||
+      !paymentAmount ||
+      paymentAmount <= 0
+    ) {
       return res.status(400).json({
         success: false,
         message: "Invalid payment data provided",
-      })
+      });
     }
 
     // Find the appointments
     const appointments = await Appointment.find({
       _id: { $in: appointmentIds },
-    }).populate("serviceId therapistId patientId")
+    }).populate("serviceId therapistId patientId");
 
     if (appointments.length !== appointmentIds.length) {
       return res.status(404).json({
         success: false,
         message: "Some appointments not found",
-      })
+      });
     }
 
     // Calculate total owed for selected appointments
     const totalOwed = appointments.reduce((sum, apt) => {
-      const remaining = (apt.payment?.amount || 0) - (apt.payment?.paidAmount || 0)
-      return sum + Math.max(0, remaining)
-    }, 0)
+      const remaining =
+        (apt.payment?.amount || 0) - (apt.payment?.paidAmount || 0);
+      return sum + Math.max(0, remaining);
+    }, 0);
 
     if (paymentAmount > totalOwed) {
       return res.status(400).json({
         success: false,
         message: "Payment amount exceeds total owed",
-      })
+      });
     }
 
     // Process payment distribution
-    let remainingPayment = paymentAmount
-    const updatedAppointments = []
+    let remainingPayment = paymentAmount;
+    const updatedAppointments = [];
 
     for (const appointment of appointments) {
-      if (remainingPayment <= 0) break
+      if (remainingPayment <= 0) break;
 
-      const currentOwed = (appointment.payment?.amount || 0) - (appointment.payment?.paidAmount || 0)
-      if (currentOwed <= 0) continue
+      const currentOwed =
+        (appointment.payment?.amount || 0) -
+        (appointment.payment?.paidAmount || 0);
+      if (currentOwed <= 0) continue;
 
-      const paymentForThisAppointment = Math.min(remainingPayment, currentOwed)
-      const newPaidAmount = (appointment.payment?.paidAmount || 0) + paymentForThisAppointment
+      const paymentForThisAppointment = Math.min(remainingPayment, currentOwed);
+      const newPaidAmount =
+        (appointment.payment?.paidAmount || 0) + paymentForThisAppointment;
 
       // Determine new payment status
-      let newPaymentStatus = "partial"
+      let newPaymentStatus = "partial";
       if (newPaidAmount >= (appointment.payment?.amount || 0)) {
-        newPaymentStatus = "paid"
+        newPaymentStatus = "paid";
       } else if (newPaidAmount === 0) {
-        newPaymentStatus = "pending"
+        newPaymentStatus = "pending";
       }
 
       // Update appointment
@@ -1762,11 +1801,11 @@ exports.processAppointmentPayment = async (req, res) => {
             "payment.lastPaymentDate": new Date(),
           },
         },
-        { new: true, runValidators: true },
-      ).populate("serviceId therapistId patientId")
+        { new: true, runValidators: true }
+      ).populate("serviceId therapistId patientId");
 
-      updatedAppointments.push(updatedAppointment)
-      remainingPayment -= paymentForThisAppointment
+      updatedAppointments.push(updatedAppointment);
+      remainingPayment -= paymentForThisAppointment;
     }
 
     res.json({
@@ -1777,13 +1816,13 @@ exports.processAppointmentPayment = async (req, res) => {
         updatedAppointments: updatedAppointments.length,
         appointments: updatedAppointments,
       },
-    })
+    });
   } catch (error) {
-    console.error("Error processing payment:", error)
+    console.error("Error processing payment:", error);
     res.status(500).json({
       success: false,
       message: "Failed to process payment",
       error: error.message,
-    })
+    });
   }
-}
+};
