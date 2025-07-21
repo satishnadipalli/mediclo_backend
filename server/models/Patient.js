@@ -189,40 +189,4 @@ PatientSchema.virtual("appointments", {
   justOne: false,
 });
 
-//Virtual for  patient's fullName
-// PatientSchema.virtual("fullName").get(function () {
-//   return `${this.firstName} ${this.lastName}`;
-// });
-
 module.exports = mongoose.model("Patient", PatientSchema);
-
-
-// [
-// {
-//   date : "23",
-//   paid : false
-// },
-// {
-//   date : "24",
-//   paid : false
-// }
-
-// ]
-// dates.length == 1 :
-//   // cureent funciontliy
-// dates.length > 1 :
-//   for( int i = 0 ; i< dates.length ; i++)
-//     // cureent funciontliy by updating with dates[i].date
-
-
-// 23rd --> no issies
-
-// 23rd 24th -->> 
-
-// {
-//   appointment ;1 at 24th date
-// }
-
-// {
-//   appintemtn 2 23rd date 
-// }

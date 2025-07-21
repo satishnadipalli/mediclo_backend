@@ -1597,8 +1597,10 @@ exports.getPaymentSummary = async (req, res) => {
 
 exports.getPatientsWithAppointments = async (req, res) => {
   try {
-    // Fetch all patients
-    const patients = await Patient.find({}).lean()
+    // Fetch all patients with photo and birth certificate data
+    const patients = await Patient.find({})
+      .select("+photo +birthCertificate") // Ensure these fields are included
+      .lean()
 
     // For each patient, get their appointments with payment details
     const patientsWithAppointments = await Promise.all(
@@ -1612,9 +1614,9 @@ exports.getPatientsWithAppointments = async (req, res) => {
           .lean()
 
         console.log(appointments)
+
         // Transform appointments to include payment details
         const transformedAppointments = appointments.map((apt) => ({
-
           _id: apt._id,
           date: apt.date,
           startTime: apt.startTime,
@@ -1643,7 +1645,6 @@ exports.getPatientsWithAppointments = async (req, res) => {
         // Calculate payment summary
         const totalAppointments = transformedAppointments.length
         const completedAppointments = transformedAppointments.filter((apt) => apt.status === "completed").length
-
         const pendingPayments = transformedAppointments.filter(
           (apt) => apt.payment.status === "pending" || apt.payment.status === "partial",
         ).length
@@ -1668,6 +1669,19 @@ exports.getPatientsWithAppointments = async (req, res) => {
 
         return {
           ...patient,
+          // Include photo and birth certificate data in response
+          photo: patient.photo
+            ? {
+                url: patient.photo.url,
+                public_id: patient.photo.public_id,
+              }
+            : null,
+          birthCertificate: patient.birthCertificate
+            ? {
+                url: patient.birthCertificate.url,
+                public_id: patient.birthCertificate.public_id,
+              }
+            : null,
           appointments: transformedAppointments,
           totalAppointments,
           completedAppointments,
@@ -1691,6 +1705,7 @@ exports.getPatientsWithAppointments = async (req, res) => {
     })
   }
 }
+
 
 // Add this new function to process payments
 exports.processAppointmentPayment = async (req, res) => {
