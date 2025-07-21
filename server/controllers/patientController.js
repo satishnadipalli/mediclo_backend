@@ -195,6 +195,7 @@ exports.getPatient = async (req, res, next) => {
 // @access  Private (Admin, Therapist, Receptionist only)
 
 exports.createPatient = async (req, res, next) => {
+  console.log("Hii");
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -242,6 +243,7 @@ exports.createPatient = async (req, res, next) => {
 
     // Try to find existing parent user by email first (if provided), then by phone
     let parentUser = null;
+
     
     if (parentInfo.email) {
       // If email is provided, search by email first
@@ -269,7 +271,9 @@ exports.createPatient = async (req, res, next) => {
         userData.email = parentInfo.email;
       }
 
+      console.log("before")
       parentUser = await User.create(userData);
+      console.log("after")
     }
 
     // Create patient with complete parent information including mother's details
@@ -308,6 +312,8 @@ exports.createPatient = async (req, res, next) => {
 
   } catch (error) {
     // Handle mongoose validation errors
+    console.log(error);
+    
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => ({
         field: err.path,
