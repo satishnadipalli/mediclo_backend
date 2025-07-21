@@ -46,9 +46,12 @@ exports.changePasswordValidation = [
 // @access  Admin only (for staff), or public for parent
 exports.register = async (req, res, next) => {
   try {
+
+    console.log("Hello");
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log("Hello");
       return res.status(400).json({
         success: false,
         errors: errors.array(),

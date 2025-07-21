@@ -193,6 +193,7 @@ exports.getPatient = async (req, res, next) => {
 // @access  Private (Admin, Therapist, Receptionist only)
 
 exports.createPatient = async (req, res, next) => {
+  console.log("Hii");
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -267,7 +268,9 @@ exports.createPatient = async (req, res, next) => {
         userData.email = parentInfo.email;
       }
 
+      console.log("before");
       parentUser = await User.create(userData);
+      console.log("after");
     }
 
     // Create patient with complete parent information including mother's details

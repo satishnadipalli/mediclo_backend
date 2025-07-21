@@ -508,33 +508,42 @@ exports.updateAppointment = async (req, res) => {
 //Update Appointment status
 exports.updateAppointmentStatusAndDetails = async (req, res) => {
   try {
-    const { id } = req.params
-    const updates = req.body
+    const { id } = req.params;
+    const updates = req.body;
 
     // Find the appointment
-    const appointment = await Appointment.findById(id)
+    const appointment = await Appointment.findById(id);
     if (!appointment) {
       return res.status(404).json({
         success: false,
         message: "Appointment not found",
-      })
+      });
+    }
+
+    // Handle cancellation: delete the appointment if status is "cancelled"
+    if (updates.status === "cancelled") {
+      await Appointment.findByIdAndDelete(id);
+      return res.json({
+        success: true,
+        message: "Appointment was cancelled and deleted successfully",
+      });
     }
 
     // Special handling for completion - SINGLE APPOINTMENT ONLY
     if (updates.status === "completed") {
       // Auto-increment sessionsCompleted by 1 if not explicitly provided
       if (updates.sessionsCompleted === undefined) {
-        updates.sessionsCompleted = appointment.sessionsCompleted + 1
+        updates.sessionsCompleted = appointment.sessionsCompleted + 1;
       }
 
       // Ensure sessionsCompleted doesn't exceed totalSessions
       if (updates.sessionsCompleted > appointment.totalSessions) {
-        updates.sessionsCompleted = appointment.totalSessions
+        updates.sessionsCompleted = appointment.totalSessions;
       }
 
       // Auto-update payment status to paid if completing and amount is set
       if (updates.payment && updates.payment.amount > 0 && !updates.payment.status) {
-        updates.payment.status = "paid"
+        updates.payment.status = "paid";
       }
     }
 
@@ -554,22 +563,22 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
       {
         new: true,
         runValidators: true,
-      },
-    ).populate("userId patientId therapistId serviceId assignedBy")
+      }
+    ).populate("userId patientId therapistId serviceId assignedBy");
 
     res.json({
       success: true,
       message: "Appointment updated successfully",
       data: updatedAppointment,
-    })
+    });
   } catch (error) {
-    console.error("Error updating appointment:", error)
+    console.error("Error updating appointment:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Failed to update appointment",
-    })
+    });
   }
-}
+};
 
 // Enhanced reschedule function with availability checking
 exports.rescheduleAppointment = async (req, res) => {
@@ -824,8 +833,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         "patientId",
         "fullName childName age dateOfBirth childDOB gender childGender"
       )
-      .populate("serviceId", "name price duration")
-      .sort({ "therapistId.lastName": 1, startTime: 1 });
+      .populate("serviceId", "name price duration");
 
     const timeSlots = [
       "09:15 AM",
@@ -1149,7 +1157,6 @@ exports.updateAppointmentStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    // Validate status input
     const validStatuses = ["scheduled", "completed", "cancelled", "no-show"];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
@@ -1181,7 +1188,18 @@ exports.updateAppointmentStatus = async (req, res) => {
       });
     }
 
-    // Update status
+
+    // If cancelled, delete the appointment
+    if (status === "cancelled") {
+      console.log("Hello  i am working")
+      await appointment.deleteOne();
+      return res.status(200).json({
+        success: true,
+        message: "Appointment cancelled and deleted successfully",
+      });
+    }
+
+    // Otherwise, just update the status
     appointment.status = status;
     await appointment.save();
 
@@ -1589,12 +1607,14 @@ exports.getPatientsWithAppointments = async (req, res) => {
           patientId: patient._id,
         })
           .populate("serviceId", "name price")
-          .populate("therapistId", "fullName")
+          .populate("therapistId", "firstName")
           .sort({ date: -1 })
           .lean()
 
+        console.log(appointments)
         // Transform appointments to include payment details
         const transformedAppointments = appointments.map((apt) => ({
+
           _id: apt._id,
           date: apt.date,
           startTime: apt.startTime,
@@ -1612,7 +1632,7 @@ exports.getPatientsWithAppointments = async (req, res) => {
             price: apt.serviceId?.price || 0,
           },
           therapist: {
-            name: apt.therapistId?.fullName || "Unknown Therapist",
+            name: apt.therapistId?.firstName || "Unknown Therapist",
             _id: apt.therapistId?._id,
           },
           totalSessions: apt.totalSessions || 1,
