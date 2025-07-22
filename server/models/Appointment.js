@@ -66,6 +66,7 @@ const AppointmentSchema = new mongoose.Schema(
         "pending_confirmation",
         "converted",
         "completed",
+        "confirmed"
       ],
       default: "scheduled",
     },

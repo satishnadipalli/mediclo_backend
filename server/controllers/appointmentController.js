@@ -517,12 +517,30 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
       });
     }
 
-    // Handle cancellation: delete the appointment if status is "cancelled"
+    // Handle cancellation: Update status to cancelled but keep the record
     if (updates.status === "cancelled") {
-      await Appointment.findByIdAndDelete(id);
+      const updatedAppointment = await Appointment.findByIdAndUpdate(
+        id,
+        {
+          status: "cancelled",
+          // Optionally add cancellation timestamp
+          cancelledAt: new Date(),
+          // Keep all other appointment data intact
+          ...updates, // This allows for additional cancellation notes, etc.
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      ).populate("userId patientId therapistId serviceId assignedBy");
+
+
+      console.log(updatedAppointment);
+      
       return res.json({
         success: true,
-        message: "Appointment was cancelled and deleted successfully",
+        message: "Appointment cancelled successfully. Slot is now available for booking.",
+        data: updatedAppointment,
       });
     }
 
@@ -580,6 +598,8 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
     });
   }
 };
+
+
 
 // Enhanced reschedule function with availability checking
 exports.rescheduleAppointment = async (req, res) => {
@@ -979,7 +999,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
   try {
     const requestedDate = req.query.date;
     let dateStart, dateEnd;
-
+    
     if (requestedDate) {
       const targetDate = new Date(requestedDate);
       dateStart = new Date(targetDate.setHours(0, 0, 0, 0));
@@ -995,6 +1015,8 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         $gte: dateStart,
         $lte: dateEnd,
       },
+      // ADD THIS LINE: Exclude cancelled appointments
+      status: { $ne: "cancelled" }
     };
 
     if (req.user.role === "therapist") {
@@ -1010,7 +1032,8 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         "patientId",
         "fullName childName age dateOfBirth childDOB gender childGender"
       )
-      .populate("serviceId", "name price duration");
+      .populate("serviceId", "name price duration")
+      .sort({ createdAt: -1 }); // Sort by newest first to prioritize recent appointments
 
     const timeSlots = [
       "09:15 AM",
@@ -1038,7 +1061,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         role: "therapist",
         isActive: true,
       }).select("firstName lastName designation");
-
+      
       therapists.forEach((therapist) => {
         const therapistName = `Dr. ${therapist.firstName} ${
           therapist.lastName
@@ -1075,6 +1098,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
           appt.patientId?.fullName ||
           appt.patientId?.childName ||
           "N/A";
+
         const duration = calculateDuration(appt.startTime, appt.endTime);
 
         calendar[therapistName][startFormatted] = {
@@ -1168,31 +1192,35 @@ function calculateDuration(startTime, endTime) {
 exports.getAppointmentsByDate = async (req, res) => {
   try {
     const selectedDate = req.query.date;
+    console.log(selectedDate, "selected-date");
+    
     if (!selectedDate) {
       return res.status(400).json({
         success: false,
         message: "Date is required in query string (YYYY-MM-DD)",
       });
     }
-
+    
     const dateStart = new Date(new Date(selectedDate).setHours(0, 0, 0, 0));
     const dateEnd = new Date(new Date(selectedDate).setHours(23, 59, 59, 999));
-
+    
     const therapistQuery = { role: "therapist" };
     if (req.user.role === "therapist") {
       therapistQuery._id = req.user._id;
     }
-
+    
     const therapists = await User.find(therapistQuery).select(
       "firstName lastName _id"
     );
-
+    
+    // Get all appointments for the date EXCEPT cancelled ones
     const appointments = await Appointment.find({
       date: { $gte: dateStart, $lte: dateEnd },
+      status: { $ne: "cancelled" } // Add this line to exclude cancelled appointments
     })
       .populate("therapistId", "firstName lastName _id")
       .populate("patientId", "fullName");
-
+    
     const timeSlots = [
       "09:15 AM",
       "10:00 AM",
@@ -1209,7 +1237,7 @@ exports.getAppointmentsByDate = async (req, res) => {
       "06:15 PM",
       "07:00 PM",
     ];
-
+    
     const calculateDuration = (start, end) => {
       const [sH, sM, sP] = start.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
       const [eH, eM, eP] = end.match(/(\d+):(\d+)\s(AM|PM)/).slice(1);
@@ -1218,9 +1246,9 @@ exports.getAppointmentsByDate = async (req, res) => {
       const eDate = new Date(0, 0, 0, to24(+eH, eP), +eM);
       return Math.round((eDate - sDate) / 60000);
     };
-
+    
     const calendar = {};
-
+    
     // Initialize
     therapists.forEach((t) => {
       calendar[t._id] = {
@@ -1232,12 +1260,11 @@ exports.getAppointmentsByDate = async (req, res) => {
         calendar[t._id].slots[slot] = null;
       });
     });
-
-    // Fill appointments
+    
+    // Fill appointments (only non-cancelled ones will be here)
     appointments.forEach((appt) => {
       const t = appt.therapistId;
       if (!t || !calendar[t._id]) return;
-
       const slot = appt.startTime;
       if (timeSlots.includes(slot)) {
         calendar[t._id].slots[slot] = {
@@ -1251,9 +1278,9 @@ exports.getAppointmentsByDate = async (req, res) => {
         };
       }
     });
-
+    
     const patients = await Patient.find({});
-
+    
     return res.status(200).json({
       success: true,
       data: calendar,
@@ -1919,8 +1946,7 @@ exports.processAppointmentPayment = async (req, res) => {
     if (
       !appointmentIds ||
       appointmentIds.length === 0 ||
-      !paymentAmount ||
-      paymentAmount <= 0
+      paymentAmount < 0
     ) {
       return res.status(400).json({
         success: false,
