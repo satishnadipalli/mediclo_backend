@@ -505,64 +505,70 @@ exports.updateAppointment = async (req, res) => {
 //Update Appointment status
 exports.updateAppointmentStatusAndDetails = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updates = req.body;
+    const { id } = req.params
+    const updates = req.body
 
     // Find the appointment
-    const appointment = await Appointment.findById(id);
+    const appointment = await Appointment.findById(id)
     if (!appointment) {
       return res.status(404).json({
         success: false,
         message: "Appointment not found",
-      });
+      })
     }
 
-    // Handle cancellation: Update status to cancelled but keep the record
+    // Handle cancellation: Update status to cancelled and handle payment status
     if (updates.status === "cancelled") {
+      const paymentUpdates = {}
+
+      // If appointment was paid, mark payment as refunded
+      if (appointment.payment.status === "paid") {
+        paymentUpdates.status = "refunded"
+      }
+      // If appointment was pending, keep it as pending (no refund needed)
+
       const updatedAppointment = await Appointment.findByIdAndUpdate(
         id,
         {
           status: "cancelled",
-          // Optionally add cancellation timestamp
           cancelledAt: new Date(),
-          // Keep all other appointment data intact
+          // Update payment status based on original status
+          ...(Object.keys(paymentUpdates).length > 0 && {
+            payment: {
+              ...appointment.payment,
+              ...paymentUpdates,
+            },
+          }),
           ...updates, // This allows for additional cancellation notes, etc.
         },
         {
           new: true,
           runValidators: true,
-        }
-      ).populate("userId patientId therapistId serviceId assignedBy");
+        },
+      ).populate("userId patientId therapistId serviceId assignedBy")
 
-
-      console.log(updatedAppointment);
-      
       return res.json({
         success: true,
         message: "Appointment cancelled successfully. Slot is now available for booking.",
         data: updatedAppointment,
-      });
+      })
     }
 
     // Special handling for completion - SINGLE APPOINTMENT ONLY
     if (updates.status === "completed") {
       // Auto-increment sessionsCompleted by 1 if not explicitly provided
       if (updates.sessionsCompleted === undefined) {
-        updates.sessionsCompleted = appointment.sessionsCompleted + 1;
+        updates.sessionsCompleted = appointment.sessionsCompleted + 1
       }
 
       // Ensure sessionsCompleted doesn't exceed totalSessions
       if (updates.sessionsCompleted > appointment.totalSessions) {
-        updates.sessionsCompleted = appointment.totalSessions;
+        updates.sessionsCompleted = appointment.totalSessions
       }
 
       // Auto-update payment status to paid if completing and amount is set
-      if (
-        updates.payment &&
-        updates.payment.amount > 0 &&
-        !updates.payment.status
-      ) {
-        updates.payment.status = "paid";
+      if (updates.payment && updates.payment.amount > 0 && !updates.payment.status) {
+        updates.payment.status = "paid"
       }
     }
 
@@ -582,50 +588,70 @@ exports.updateAppointmentStatusAndDetails = async (req, res) => {
       {
         new: true,
         runValidators: true,
-      }
-    ).populate("userId patientId therapistId serviceId assignedBy");
+      },
+    ).populate("userId patientId therapistId serviceId assignedBy")
 
     res.json({
       success: true,
       message: "Appointment updated successfully",
       data: updatedAppointment,
-    });
+    })
   } catch (error) {
-    console.error("Error updating appointment:", error);
+    console.error("Error updating appointment:", error)
     res.status(500).json({
       success: false,
       message: error.message || "Failed to update appointment",
-    });
+    })
   }
-};
+}
 
 
 
 // Enhanced reschedule function with availability checking
+
 exports.rescheduleAppointment = async (req, res) => {
   try {
-    const { date, startTime, endTime, therapistId, reason } = req.body;
+    const { date, startTime, endTime, therapistId, reason, paymentStatus } = req.body
+
+    console.log("Received reschedule request:", {
+      date,
+      startTime,
+      endTime,
+      therapistId,
+      reason,
+      paymentStatus,
+    })
 
     if (!date || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
         error: "Date, startTime, and endTime are required",
-      });
+      })
     }
 
-    const appointment = await Appointment.findById(req.params.id);
+    const appointment = await Appointment.findById(req.params.id)
     if (!appointment) {
       return res.status(404).json({
         success: false,
         error: "Appointment not found",
-      });
+      })
+    }
+
+    console.log("Original appointment payment status:", appointment.payment.status)
+
+    // Check if appointment is cancelled (only cancelled appointments should be rescheduled via this flow)
+    if (appointment.status !== "cancelled") {
+      return res.status(400).json({
+        success: false,
+        error: "Only cancelled appointments can be rescheduled through this process",
+      })
     }
 
     // Check for conflicts with the new time slot
     const conflictCheck = await Appointment.findOne({
       therapistId: therapistId || appointment.therapistId,
       date: new Date(date),
-      _id: { $ne: appointment._id }, // Exclude current appointment
+      _id: { $ne: appointment._id },
       status: { $ne: "cancelled" },
       $or: [
         {
@@ -641,75 +667,275 @@ exports.rescheduleAppointment = async (req, res) => {
           endTime: { $lte: endTime },
         },
       ],
-    });
+    })
 
     if (conflictCheck) {
       return res.status(400).json({
         success: false,
         error: "Selected time slot is not available",
-      });
+      })
     }
 
     // If changing therapist, validate therapist
     if (therapistId && therapistId !== appointment.therapistId.toString()) {
-      const therapist = await User.findById(therapistId);
+      const therapist = await User.findById(therapistId)
       if (!therapist || therapist.role !== "therapist") {
         return res.status(404).json({
           success: false,
           error: "Therapist not found",
-        });
+        })
       }
-      appointment.therapistId = therapistId;
     }
 
-    // Update appointment fields
-    appointment.date = new Date(date);
-    appointment.startTime = startTime;
-    appointment.endTime = endTime;
-    appointment.status = "rescheduled";
-    appointment.notes = `${appointment.notes || ""}\nRescheduled: ${
-      reason || ""
-    }`;
+    // Determine the new payment status - THIS IS THE KEY FIX
+    let newPaymentStatus = "pending" // Default
 
-    await appointment.save();
+    if (paymentStatus) {
+      // ALWAYS use the payment status explicitly provided by the receptionist
+      newPaymentStatus = paymentStatus
+      console.log("Using provided payment status:", newPaymentStatus)
+    } else {
+      // Fallback logic if no payment status provided
+      if (appointment.payment.status === "refunded") {
+        newPaymentStatus = "paid"
+      } else {
+        newPaymentStatus = "pending"
+      }
+      console.log("Using fallback payment status:", newPaymentStatus)
+    }
+
+    // Update notes with reschedule reason
+    const rescheduleNote = `Rescheduled on ${new Date().toLocaleDateString()}: ${reason || "No reason provided"}`
+    const updatedNotes = appointment.notes ? `${appointment.notes}\n${rescheduleNote}` : rescheduleNote
+
+    // Create the update object with explicit payment status
+    const updateData = {
+      date: new Date(date),
+      startTime: startTime,
+      endTime: endTime,
+      status: "scheduled",
+      therapistId: therapistId || appointment.therapistId,
+      notes: updatedNotes,
+      // CRITICAL: Explicitly set the entire payment object
+      "payment.status": newPaymentStatus,
+      "payment.amount": appointment.payment.amount,
+      "payment.method": appointment.payment.method,
+    }
+
+    console.log("Update data being sent to database:", updateData)
+
+    // Use findByIdAndUpdate with dot notation for nested fields
+    const updatedAppointment = await Appointment.findByIdAndUpdate(req.params.id, updateData, {
+      new: true, // Return the updated document
+      runValidators: true,
+    }).populate("userId patientId therapistId serviceId assignedBy")
+
+    if (!updatedAppointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Failed to update appointment",
+      })
+    }
+
+    console.log("Updated appointment payment status:", updatedAppointment.payment.status)
 
     // Fetch related service and therapist data for email
     const [service, therapist] = await Promise.all([
-      Service.findById(appointment.serviceId),
-      User.findById(appointment.therapistId),
-    ]);
+      Service.findById(updatedAppointment.serviceId),
+      User.findById(updatedAppointment.therapistId),
+    ])
 
     // Send reschedule email
     try {
       await sendEmail({
-        to: appointment.email,
+        to: updatedAppointment.email,
         subject: "Your Appointment Has Been Rescheduled",
         html: appointmentReschedule({
-          name: appointment.patientName || appointment.fatherName || "User",
+          name: updatedAppointment.patientName || updatedAppointment.fatherName || "User",
           service: service?.name || "Service",
-          date: appointment.date,
-          startTime: appointment.startTime,
-          endTime: appointment.endTime,
+          date: updatedAppointment.date,
+          startTime: updatedAppointment.startTime,
+          endTime: updatedAppointment.endTime,
           therapist: therapist?.fullName || "Therapist",
           reason,
+          paymentStatus: newPaymentStatus,
         }),
-      });
-      console.log("Reschedule email sent to:", appointment.email);
+      })
+      console.log("Reschedule email sent to:", updatedAppointment.email)
     } catch (err) {
-      console.error("Failed to send reschedule email:", err.message);
+      console.error("Failed to send reschedule email:", err.message)
     }
 
     res.status(200).json({
       success: true,
       message: "Appointment rescheduled successfully",
-      data: appointment,
-    });
+      data: updatedAppointment,
+    })
   } catch (err) {
-    console.error("Reschedule error:", err);
-    res.status(500).json({ success: false, error: "Server Error" });
+    console.error("Reschedule error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      details: err.message,
+    })
   }
-};
+}
 
+
+exports.dashboardRescheduleAppointment = async (req, res) => {
+  try {
+    const { date, startTime, endTime, therapistId, reason } = req.body
+
+    console.log("Dashboard reschedule request:", {
+      appointmentId: req.params.id,
+      date,
+      startTime,
+      endTime,
+      therapistId,
+      reason,
+    })
+
+    if (!date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        error: "Date, startTime, and endTime are required",
+      })
+    }
+
+    const appointment = await Appointment.findById(req.params.id)
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      })
+    }
+
+    console.log("Original appointment found:", {
+      id: appointment._id,
+      status: appointment.status,
+      date: appointment.date,
+      startTime: appointment.startTime,
+    })
+
+    // Check for conflicts with the new time slot
+    const conflictCheck = await Appointment.findOne({
+      therapistId: therapistId || appointment.therapistId,
+      date: new Date(date),
+      _id: { $ne: appointment._id },
+      status: { $ne: "cancelled" },
+      $or: [
+        {
+          startTime: { $lte: startTime },
+          endTime: { $gt: startTime },
+        },
+        {
+          startTime: { $lt: endTime },
+          endTime: { $gte: endTime },
+        },
+        {
+          startTime: { $gte: startTime },
+          endTime: { $lte: endTime },
+        },
+      ],
+    })
+
+    if (conflictCheck) {
+      return res.status(400).json({
+        success: false,
+        error: "Selected time slot is not available",
+      })
+    }
+
+    // If changing therapist, validate therapist
+    if (therapistId && therapistId !== appointment.therapistId.toString()) {
+      const therapist = await User.findById(therapistId)
+      if (!therapist || therapist.role !== "therapist") {
+        return res.status(404).json({
+          success: false,
+          error: "Therapist not found",
+        })
+      }
+    }
+
+    // Update notes with reschedule reason
+    const rescheduleNote = `Rescheduled on ${new Date().toLocaleDateString()}: ${reason || "No reason provided"}`
+    const updatedNotes = appointment.notes ? `${appointment.notes}\n${rescheduleNote}` : rescheduleNote
+
+    // Simple update - just change date/time, keep everything else the same
+    const updateData = {
+      date: new Date(date),
+      startTime: startTime,
+      endTime: endTime,
+      therapistId: therapistId || appointment.therapistId,
+      notes: updatedNotes,
+      // Keep status as is (don't change to scheduled if it was completed, etc.)
+      // Keep payment status exactly as it was
+    }
+
+    console.log("Update data for dashboard reschedule:", updateData)
+
+    // Use findByIdAndUpdate to ensure atomic update
+    const updatedAppointment = await Appointment.findByIdAndUpdate(req.params.id, updateData, {
+      new: true, // Return the updated document
+      runValidators: true,
+    }).populate("userId patientId therapistId serviceId assignedBy")
+
+    if (!updatedAppointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Failed to update appointment",
+      })
+    }
+
+    console.log("Updated appointment:", {
+      id: updatedAppointment._id,
+      status: updatedAppointment.status,
+      date: updatedAppointment.date,
+      startTime: updatedAppointment.startTime,
+      paymentStatus: updatedAppointment.payment.status,
+    })
+
+    // Fetch related service and therapist data for email
+    const [service, therapist] = await Promise.all([
+      Service.findById(updatedAppointment.serviceId),
+      User.findById(updatedAppointment.therapistId),
+    ])
+
+    // Send reschedule email
+    try {
+      await sendEmail({
+        to: updatedAppointment.email,
+        subject: "Your Appointment Has Been Rescheduled",
+        html: appointmentReschedule({
+          name: updatedAppointment.patientName || updatedAppointment.fatherName || "User",
+          service: service?.name || "Service",
+          date: updatedAppointment.date,
+          startTime: updatedAppointment.startTime,
+          endTime: updatedAppointment.endTime,
+          therapist: therapist?.fullName || "Therapist",
+          reason,
+          paymentStatus: updatedAppointment.payment.status,
+        }),
+      })
+      console.log("Reschedule email sent to:", updatedAppointment.email)
+    } catch (err) {
+      console.error("Failed to send reschedule email:", err.message)
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Appointment rescheduled successfully",
+      data: updatedAppointment,
+    })
+  } catch (err) {
+    console.error("Dashboard reschedule error:", err)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      details: err.message,
+    })
+  }
+}
 // @desc    Delete appointment
 // @route   DELETE /api/appointments/:id
 // @access  Private (Admin, Receptionist)
@@ -1556,6 +1782,8 @@ exports.createMultipleAppointments = async (req, res) => {
       const conflictDates = conflictCheck.map(
         (appt) => appt.date.toISOString().split("T")[0]
       );
+
+      console.log(conflictDates)
       return res.status(400).json({
         success: false,
         error: `Therapist already has appointments on: ${conflictDates.join(
@@ -1985,12 +2213,12 @@ exports.processAppointmentPayment = async (req, res) => {
     const updatedAppointments = [];
 
     for (const appointment of appointments) {
-      if (remainingPayment <= 0) break;
+      if (remainingPayment < 0) break;
 
       const currentOwed =
         (appointment.payment?.amount || 0) -
         (appointment.payment?.paidAmount || 0);
-      if (currentOwed <= 0) continue;
+      if (currentOwed < 0) continue;
 
       const paymentForThisAppointment = Math.min(remainingPayment, currentOwed);
       const newPaidAmount =
@@ -2040,3 +2268,206 @@ exports.processAppointmentPayment = async (req, res) => {
     });
   }
 };
+
+
+exports.checkSlotAvailability = async (req, res) => {
+  try {
+    const { doctorId, date, timeSlot } = req.body
+
+    if (!doctorId || !date || !timeSlot) {
+      return res.status(400).json({
+        success: false,
+        error: "Doctor ID, date, and time slot are required",
+      })
+    }
+
+    // Check if the slot is available
+    const existingAppointment = await Appointment.findOne({
+      therapistId: doctorId,
+      date: new Date(date),
+      startTime: timeSlot,
+      status: { $ne: "cancelled" },
+    })
+
+    const available = !existingAppointment
+
+    res.json({
+      success: true,
+      available,
+      conflictReason: available ? null : "Slot already booked",
+    })
+  } catch (error) {
+    console.error("Error checking slot availability:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: error.message,
+    })
+  }
+}
+
+// @desc    Check for appointment conflicts
+// @route   POST /api/appointments/check-conflicts
+// @access  Private (Admin, Receptionist)
+exports.checkAppointmentConflicts = async (req, res) => {
+  try {
+    const { patientId, doctorId, date, startTime, endTime, excludeId } = req.body
+
+    if (!patientId || !doctorId || !date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        error: "All fields are required for conflict checking",
+      })
+    }
+
+    const conflicts = []
+
+    // Check for doctor conflicts
+    const doctorConflict = await Appointment.findOne({
+      therapistId: doctorId,
+      date: new Date(date),
+      _id: excludeId ? { $ne: excludeId } : { $exists: true },
+      status: { $ne: "cancelled" },
+      $or: [
+        {
+          startTime: { $lte: startTime },
+          endTime: { $gt: startTime },
+        },
+        {
+          startTime: { $lt: endTime },
+          endTime: { $gte: endTime },
+        },
+        {
+          startTime: { $gte: startTime },
+          endTime: { $lte: endTime },
+        },
+      ],
+    }).populate("therapistId", "firstName lastName")
+
+    if (doctorConflict) {
+      conflicts.push({
+        type: "doctor",
+        message: "Doctor already has an appointment at this time",
+        doctorName: `${doctorConflict.therapistId.firstName} ${doctorConflict.therapistId.lastName}`,
+        existingAppointment: {
+          id: doctorConflict._id,
+          startTime: doctorConflict.startTime,
+          endTime: doctorConflict.endTime,
+        },
+      })
+    }
+
+    // Check for patient conflicts
+    const patientConflict = await Appointment.findOne({
+      patientId: patientId,
+      date: new Date(date),
+      _id: excludeId ? { $ne: excludeId } : { $exists: true },
+      status: { $ne: "cancelled" },
+      $or: [
+        {
+          startTime: { $lte: startTime },
+          endTime: { $gt: startTime },
+        },
+        {
+          startTime: { $lt: endTime },
+          endTime: { $gte: endTime },
+        },
+        {
+          startTime: { $gte: startTime },
+          endTime: { $lte: endTime },
+        },
+      ],
+    }).populate("therapistId", "firstName lastName")
+
+    if (patientConflict) {
+      conflicts.push({
+        type: "patient",
+        message: "Patient already has an appointment at this time",
+        doctorName: `${patientConflict.therapistId.firstName} ${patientConflict.therapistId.lastName}`,
+        patientName: patientConflict.patientName,
+        existingAppointment: {
+          id: patientConflict._id,
+          startTime: patientConflict.startTime,
+          endTime: patientConflict.endTime,
+        },
+      })
+    }
+
+    res.json({
+      success: conflicts.length === 0,
+      conflicts,
+      message: conflicts.length === 0 ? "No conflicts found" : "Conflicts detected",
+    })
+  } catch (error) {
+    console.error("Error checking conflicts:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: error.message,
+    })
+  }
+}
+
+// @desc    Get available time slots for a doctor on a specific date
+// @route   GET /api/appointments/available-slots/:doctorId/:date
+// @access  Private (Admin, Receptionist)
+exports.getAvailableSlots = async (req, res) => {
+  try {
+    const { doctorId, date } = req.params
+
+    if (!doctorId || !date) {
+      return res.status(400).json({
+        success: false,
+        error: "Doctor ID and date are required",
+      })
+    }
+
+    // Define all possible time slots
+    const allTimeSlots = [
+      "09:15 AM",
+      "10:00 AM",
+      "10:45 AM",
+      "11:30 AM",
+      "12:15 PM",
+      "01:00 PM",
+      "01:45 PM",
+      "02:30 PM",
+      "03:15 PM",
+      "04:00 PM",
+      "04:45 PM",
+      "05:30 PM",
+      "06:15 PM",
+      "07:00 PM",
+    ]
+
+    // Get booked appointments for this doctor on this date
+    const bookedAppointments = await Appointment.find({
+      therapistId: doctorId,
+      date: new Date(date),
+      status: { $ne: "cancelled" },
+    }).select("startTime")
+
+    const bookedSlots = bookedAppointments.map((apt) => apt.startTime)
+
+    // Create slots array with availability status
+    const slots = allTimeSlots.map((slot) => ({
+      time: slot,
+      available: !bookedSlots.includes(slot),
+      conflictReason: bookedSlots.includes(slot) ? "Already booked" : null,
+    }))
+
+    res.json({
+      success: true,
+      slots,
+      date,
+      doctorId,
+    })
+  } catch (error) {
+    console.error("Error getting available slots:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: error.message,
+    })
+  }
+}

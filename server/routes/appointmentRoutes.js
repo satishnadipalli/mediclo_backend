@@ -28,7 +28,20 @@ const {
   // New functions for patient payment management
   getPatientsWithAppointments,
   processAppointmentPayment,
+  dashboardRescheduleAppointment,
+  checkSlotAvailability,
+  checkAppointmentConflicts,
+  getAvailableSlots,
 } = require("../controllers/appointmentController")
+
+
+
+router.post("/slot-availability", protect, authorize("admin", "receptionist"), checkSlotAvailability);
+router.post("/check-conflicts", protect, authorize("admin", "receptionist"), checkAppointmentConflicts);
+router.get("/available-slots/:doctorId/:date", protect, authorize("admin", "receptionist"), getAvailableSlots);
+
+
+
 
 // ======================
 // USER ROUTES
@@ -93,6 +106,8 @@ router.put("/updateappointment/:id", updateAppointmentStatusAndDetails)
 router.put("/:id/reschedule", protect, authorize("admin", "receptionist", "therapist"), rescheduleAppointment)
 
 router.put("/:id/status", protect, authorize("admin", "receptionist", "therapist"), updateAppointmentStatus)
+// Add this route to your appointments router
+router.put('/:id/dashboard-reschedule', dashboardRescheduleAppointment);
 
 module.exports = router
 

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require("mongoose")
 
 const PatientSchema = new mongoose.Schema(
   {
@@ -22,6 +22,53 @@ const PatientSchema = new mongoose.Schema(
       type: String,
       enum: ["male", "female", "other", "not_specified"],
       default: "not_specified",
+    },
+    notes: {
+      type: String,
+      required: false,
+    },
+    // NEW FIELD - Child Symptoms
+    childSymptoms: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (symptoms) => {
+          // Define allowed symptoms
+          const allowedSymptoms = [
+            "Autism spectrum disorder",
+            "Attention deficit hyperactivity disorder",
+            "Down's syndrome",
+            "Developmental delayed disorder",
+            "Cerebral palsy",
+            "Seizure disorders",
+            "Hypoxic-Ischemic Encephalopathy",
+            "Hemiparalysis",
+            "Learning difficulties",
+            "Slow learner",
+            "Fine motor skills difficulties",
+            "Attention deficit disorder",
+            "Sensory processing disorders",
+            "Swallowing and feeding issues",
+            "Speech language delays",
+            "Stammering",
+            "Articulations issues",
+            "Slurred speech",
+            "Visual processing difficulties",
+            "Behavioural issues",
+            "Handwriting difficulties",
+            "Brachial plexus injury",
+            "Hand functions dysfunction",
+            "Spina bifida",
+            "Developmental disorders",
+            "Genetic disorders",
+            "Others",
+          ]
+
+          // Check if all symptoms are valid
+          return symptoms.every((symptom) => allowedSymptoms.includes(symptom))
+        },
+        message: "Invalid symptom provided",
+      },
     },
     photo: {
       url: String,
@@ -66,13 +113,13 @@ const PatientSchema = new mongoose.Schema(
       },
       email: {
         type: String,
-        required:false
+        required: false,
       },
       motherName: {
         type: String,
         required: [true, "Please add parent/guardian name"],
       },
-      motherphone : {
+      motherphone: {
         type: String,
         required: [true, "Please add parent/guardian name"],
       },
@@ -161,25 +208,20 @@ const PatientSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
-);
-
-// Create full name virtual
-// PatientSchema.virtual("fullName").get(function () {
-//   return `${this.firstName} ${this.lastName}`;
-// });
+  },
+)
 
 // Calculate age virtual
 PatientSchema.virtual("age").get(function () {
-  const today = new Date();
-  const birthDate = new Date(this.dateOfBirth);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
+  const today = new Date()
+  const birthDate = new Date(this.dateOfBirth)
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const m = today.getMonth() - birthDate.getMonth()
   if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
+    age--
   }
-  return age;
-});
+  return age
+})
 
 // Virtual for appointments
 PatientSchema.virtual("appointments", {
@@ -187,6 +229,6 @@ PatientSchema.virtual("appointments", {
   localField: "_id",
   foreignField: "patientId",
   justOne: false,
-});
+})
 
-module.exports = mongoose.model("Patient", PatientSchema);
+module.exports = mongoose.model("Patient", PatientSchema)
