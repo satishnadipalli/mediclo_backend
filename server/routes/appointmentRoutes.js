@@ -29,18 +29,8 @@ const {
   getPatientsWithAppointments,
   processAppointmentPayment,
   dashboardRescheduleAppointment,
-  checkSlotAvailability,
-  checkAppointmentConflicts,
-  getAvailableSlots,
+
 } = require("../controllers/appointmentController")
-
-
-
-router.post("/slot-availability", protect, authorize("admin", "receptionist"), checkSlotAvailability);
-router.post("/check-conflicts", protect, authorize("admin", "receptionist"), checkAppointmentConflicts);
-router.get("/available-slots/:doctorId/:date", protect, authorize("admin", "receptionist"), getAvailableSlots);
-
-
 
 
 // ======================
@@ -111,6 +101,16 @@ router.put('/:id/dashboard-reschedule', dashboardRescheduleAppointment);
 
 module.exports = router
 
+
+
+
+
+
+
+
+// router.post("/slot-availability", protect, authorize("admin", "receptionist"), checkSlotAvailability);
+// router.post("/check-conflicts", protect, authorize("admin", "receptionist"), checkAppointmentConflicts);
+// router.get("/available-slots/:doctorId/:date", protect, authorize("admin", "receptionist"), getAvailableSlots);
 
 
 
