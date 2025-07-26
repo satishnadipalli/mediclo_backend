@@ -1421,7 +1421,6 @@ exports.createMultipleAppointments = async (req, res) => {
   try {
     console.log("=== CREATE MULTIPLE APPOINTMENTS START ===")
     console.log("Full request body:", JSON.stringify(req.body, null, 2))
-
     const {
       patientId,
       patientName,
@@ -1444,39 +1443,44 @@ exports.createMultipleAppointments = async (req, res) => {
       totalSessions,
     } = req.body
 
+    // Helper function to convert time string to minutes for proper comparison
+    const timeToMinutes = (timeStr) => {
+      const [time, period] = timeStr.split(' ')
+      const [hours, minutes] = time.split(':').map(Number)
+      let totalMinutes = hours * 60 + minutes
+      
+      if (period === 'PM' && hours !== 12) totalMinutes += 12 * 60
+      if (period === 'AM' && hours === 12) totalMinutes -= 12 * 60
+      
+      return totalMinutes
+    }
+
     // Enhanced appointment data processing with detailed logging
     let appointmentsToCreate = []
-
     console.log("Checking scheduledAppointments:", scheduledAppointments)
     console.log("Checking dates:", dates)
     console.log("Checking startTime/endTime:", startTime, endTime)
 
     if (scheduledAppointments && Array.isArray(scheduledAppointments) && scheduledAppointments.length > 0) {
       console.log("Processing scheduledAppointments format...")
-
       appointmentsToCreate = scheduledAppointments.map((appointment, index) => {
         console.log(`Processing appointment ${index}:`, appointment)
-
         const processedAppointment = {
           date: appointment.date,
           startTime: appointment.startTime,
           endTime: appointment.endTime,
         }
-
         console.log(`Processed appointment ${index}:`, processedAppointment)
         return processedAppointment
       })
-
       console.log("Final appointmentsToCreate from scheduledAppointments:", appointmentsToCreate)
     } else if (dates && Array.isArray(dates) && dates.length > 0 && startTime && endTime) {
       console.log("Processing legacy dates format...")
-
       appointmentsToCreate = dates.map((date) => ({
         date,
         startTime,
         endTime,
       }))
-
       console.log("Final appointmentsToCreate from dates:", appointmentsToCreate)
     } else {
       console.log("No valid appointment data found")
@@ -1574,44 +1578,78 @@ exports.createMultipleAppointments = async (req, res) => {
       console.log("New patient created:", patient.fullName)
     }
 
-    // Enhanced conflict checking for each appointment
+    // FIXED: Enhanced conflict checking with proper time comparison
     console.log("Checking for conflicts...")
+    
+    // Define inactive statuses that should NOT cause conflicts
+    const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"]
+    
     const conflictPromises = appointmentsToCreate.map(async (appointment, index) => {
       console.log(`Checking conflicts for appointment ${index}:`, appointment)
-
       const appointmentDate = new Date(appointment.date)
-      const startTimeForComparison = appointment.startTime
-      const endTimeForComparison = appointment.endTime
+      const newStartMinutes = timeToMinutes(appointment.startTime)
+      const newEndMinutes = timeToMinutes(appointment.endTime)
 
-      const conflictCheck = await Appointment.findOne({
+      console.log(`New appointment time in minutes: ${newStartMinutes} - ${newEndMinutes} (${appointment.startTime} - ${appointment.endTime})`)
+
+      // Get all active appointments for this therapist on this date
+      const activeAppointments = await Appointment.find({
         therapistId: therapistId,
         date: appointmentDate,
-        status: { $ne: "cancelled" },
-        $or: [
-          {
-            startTime: { $lte: startTimeForComparison },
-            endTime: { $gt: startTimeForComparison },
-          },
-          {
-            startTime: { $lt: endTimeForComparison },
-            endTime: { $gte: endTimeForComparison },
-          },
-          {
-            startTime: { $gte: startTimeForComparison },
-            endTime: { $lte: endTimeForComparison },
-          },
-        ],
-      })
+        status: { $nin: INACTIVE_STATUSES }
+      }).select("_id startTime endTime status patientName")
 
-      if (conflictCheck) {
-        console.log(`Conflict found for appointment ${index}:`, conflictCheck._id)
+      console.log(`Active appointments on ${appointmentDate.toISOString().split("T")[0]}:`, 
+        activeAppointments.map(apt => {
+          const existingStartMinutes = timeToMinutes(apt.startTime)
+          const existingEndMinutes = timeToMinutes(apt.endTime)
+          return {
+            id: apt._id,
+            time: `${apt.startTime} - ${apt.endTime}`,
+            timeInMinutes: `${existingStartMinutes} - ${existingEndMinutes}`,
+            status: apt.status,
+            patient: apt.patientName
+          }
+        })
+      )
+
+      // Check for conflicts using proper time comparison
+      let conflictingAppointment = null
+      for (const existing of activeAppointments) {
+        const existingStartMinutes = timeToMinutes(existing.startTime)
+        const existingEndMinutes = timeToMinutes(existing.endTime)
+
+        // Check if times overlap
+        const hasOverlap = (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes)
+        
+        console.log(`Checking overlap with ${existing._id}:`, {
+          existing: `${existingStartMinutes}-${existingEndMinutes} (${existing.startTime}-${existing.endTime})`,
+          new: `${newStartMinutes}-${newEndMinutes} (${appointment.startTime}-${appointment.endTime})`,
+          hasOverlap: hasOverlap
+        })
+
+        if (hasOverlap) {
+          conflictingAppointment = existing
+          break
+        }
+      }
+
+      if (conflictingAppointment) {
+        console.log(`Conflict found for appointment ${index}:`, {
+          conflictingId: conflictingAppointment._id,
+          conflictingStatus: conflictingAppointment.status,
+          conflictingTime: `${conflictingAppointment.startTime} - ${conflictingAppointment.endTime}`,
+          conflictingPatient: conflictingAppointment.patientName
+        })
         return {
           hasConflict: true,
           date: appointmentDate.toISOString().split("T")[0],
           time: appointment.startTime,
-          conflictingAppointment: conflictCheck._id,
+          conflictingAppointment: conflictingAppointment._id,
         }
       }
+      
+      console.log(`No conflict found for appointment ${index}`)
       return { hasConflict: false }
     })
 
@@ -1704,7 +1742,6 @@ exports.createMultipleAppointments = async (req, res) => {
           isMultiple: true,
         }),
       })
-
       console.log("Multiple appointments confirmation email sent to:", email)
     } catch (emailErr) {
       console.error("Failed to send confirmation email:", emailErr.message)
@@ -1733,7 +1770,6 @@ exports.createMultipleAppointments = async (req, res) => {
     console.error("=== CREATE MULTIPLE APPOINTMENTS ERROR ===")
     console.error("Error details:", err)
     console.error("Error stack:", err.stack)
-
     res.status(500).json({
       success: false,
       error: "Server Error",
@@ -1741,8 +1777,6 @@ exports.createMultipleAppointments = async (req, res) => {
     })
   }
 }
-
-
 // Update the existing updateAppointment function to handle bulk payment updates
 exports.updatePatientAppointmentsPayment = async (req, res) => {
   try {
