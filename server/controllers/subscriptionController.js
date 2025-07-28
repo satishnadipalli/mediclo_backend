@@ -175,59 +175,70 @@ exports.getSubscriptionPlan = async (req, res, next) => {
  * @access  Private (User)
  */
 exports.createSubscription = async (req, res, next) => {
-  console.log("Creating subscription with payment verification...")
+  console.log("Creating subscription with payment verification...");
   try {
-    const { plan: planId, paymentMethod, transactionId, razorpayOrderId, razorpaySignature } = req.body
+    const {
+      plan: planId,
+      paymentMethod,
+      transactionId,
+      razorpayOrderId,
+      razorpaySignature,
+    } = req.body;
 
     // Validate required fields
     if (!planId) {
       return res.status(400).json({
         success: false,
         error: "Plan ID is required",
-      })
+      });
     }
 
     // If it's a Razorpay payment, verify the signature
-    if (paymentMethod === "razorpay" && transactionId && razorpayOrderId && razorpaySignature) {
-      console.log("🔍 Verifying Razorpay payment signature...")
+    if (
+      paymentMethod === "razorpay" &&
+      transactionId &&
+      razorpayOrderId &&
+      razorpaySignature
+    ) {
+      console.log("🔍 Verifying Razorpay payment signature...");
 
       // Create signature for verification
-      const body = razorpayOrderId + "|" + transactionId
+      const body = razorpayOrderId + "|" + transactionId;
       const expectedSignature = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
         .update(body.toString())
-        .digest("hex")
+        .digest("hex");
 
       // Verify signature
       if (expectedSignature !== razorpaySignature) {
-        console.log("❌ Payment signature verification failed")
+        console.log("❌ Payment signature verification failed");
         return res.status(400).json({
           success: false,
           error: "Payment verification failed",
-        })
+        });
       }
 
-      console.log("✅ Payment signature verified")
+      console.log("✅ Payment signature verified");
     }
 
-    const plan = await SubscriptionPlan.findById(planId)
+    const plan = await SubscriptionPlan.findById(planId);
     if (!plan) {
-      return res.status(404).json({ success: false, error: "Plan not found" })
+      return res.status(404).json({ success: false, error: "Plan not found" });
     }
 
     const existing = await Subscription.findOne({
       user: req.user._id,
       isActive: true,
-    })
+    });
 
     if (existing) {
       return res.status(400).json({
         success: false,
         error: "User already has an active subscription",
-      })
+      });
     }
 
-    const { startDate, endDate, nextRenewalDate } = calculateDates(plan)
+    const { startDate, endDate, nextRenewalDate } = calculateDates(plan);
 
     const subscription = await Subscription.create({
       user: req.user._id,
@@ -251,26 +262,25 @@ exports.createSubscription = async (req, res, next) => {
           razorpayOrderId: razorpayOrderId || "",
         },
       ],
-    })
+    });
 
     // Update user membership
-    req.user.membership = plan.name.toLowerCase()
-    req.user.subscriptionStart = startDate
-    req.user.subscriptionEnd = endDate
-    await req.user.save()
+    req.user.membership = plan.name.toLowerCase();
+    req.user.subscriptionStart = startDate;
+    req.user.subscriptionEnd = endDate;
+    await req.user.save();
 
-    console.log("✅ Subscription created successfully:", subscription._id)
+    console.log("✅ Subscription created successfully:", subscription._id);
 
-    res.status(201).json({ success: true, data: subscription })
+    res.status(201).json({ success: true, data: subscription });
   } catch (err) {
-    console.error("Create subscription error:", err)
+    console.error("Create subscription error:", err);
     res.status(500).json({
       success: false,
       error: "Server Error",
-    })
+    });
   }
-}
-
+};
 
 /**
  * @desc    Renew subscription
@@ -565,7 +575,7 @@ exports.getAllSubscribers = async (req, res) => {
     const total = await Subscription.countDocuments(query);
 
     const subscriptions = await Subscription.find(query)
-      .populate("user", "firstName, lastName, email")
+      .populate("user", "firstName lastName email")
       .populate("plan", "name")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -573,12 +583,25 @@ exports.getAllSubscribers = async (req, res) => {
 
     const data = subscriptions.map((sub) => ({
       id: sub._id,
-      memberName: sub.name,
-      email: sub.user?.email,
-      tier: sub.currentTier,
+      memberName:
+        sub.name ||
+        `${sub.user?.firstName || ""} ${sub.user?.lastName || ""}`.trim(),
+      email: sub.user?.email || sub.email || "",
+      tier: sub.currentTier || sub.plan?.name || "N/A",
       status: sub.isActive ? "Active" : "Cancelled",
       renewalDate: sub.nextRenewalDate,
+      subscriptionStart: sub.startDate,
+      subscriptionEnd: sub.endDate,
+      paymentHistory:
+        sub.paymentHistory?.map((payment) => ({
+          amount: payment.amount,
+          status: payment.status,
+          method: payment.paymentMethod,
+          transactionId: payment.transactionId,
+          date: payment.date,
+        })) || [],
     }));
+
     res.status(200).json({
       success: true,
       count: data.length,
@@ -604,29 +627,35 @@ exports.getSubscriberDetails = async (req, res) => {
       .populate("user", "-password")
       .populate("plan");
 
-      console.log(subscription,"sub")
     if (!subscription) {
       return res
         .status(404)
         .json({ success: false, error: "Subscription not found" });
     }
 
+    const memberName =
+      subscription.user?.firstName || subscription.user?.lastName
+        ? `${subscription.user?.firstName || ""} ${
+            subscription.user?.lastName || ""
+          }`.trim()
+        : subscription.name;
+
     res.status(200).json({
       success: true,
       data: {
         id: subscription._id,
-        userId: subscription?.user?._id,
-        memberName: subscription.user?.name,
-        email: subscription.user?.email,
-        phone: subscription.user?.phone,
-        tier: subscription.currentTier,
-        plan: subscription.plan?.name,
-        price: subscription.plan?.price,
+        userId: subscription?.user?._id || null,
+        memberName,
+        email: subscription.user?.email || subscription.email || "",
+        phone: subscription.user?.phone || subscription.phone || "",
+        tier: subscription.currentTier || subscription.plan?.name || "N/A",
+        plan: subscription.plan?.name || "",
+        price: subscription.plan?.price || 0,
         status: subscription.isActive ? "Active" : "Cancelled",
         startDate: subscription.startDate,
         endDate: subscription.endDate,
         nextRenewalDate: subscription.nextRenewalDate,
-        paymentHistory: subscription.paymentHistory,
+        paymentHistory: subscription.paymentHistory || [],
       },
     });
   } catch (error) {
@@ -634,5 +663,3 @@ exports.getSubscriberDetails = async (req, res) => {
     res.status(500).json({ success: false, error: "Server Error" });
   }
 };
-
-
