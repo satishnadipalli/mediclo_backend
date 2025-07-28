@@ -41,7 +41,7 @@ router.post(
 );
 
 // Admin-only routes
-router.post("/", protect, authorize("admin"), validateWebinar, createWebinar);
+router.post("/", protect, authorize("admin"), createWebinar);
 router.put("/:id", protect, authorize("admin"), validateWebinar, updateWebinar);
 router.delete("/:id", protect, authorize("admin"), deleteWebinar);
 router.put(
