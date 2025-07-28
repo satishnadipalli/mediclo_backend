@@ -146,6 +146,8 @@ AppointmentSchema.index({ userId: 1, date: 1 });
 AppointmentSchema.index({ email: 1 }); // Add index for email searches for public submissions
 
 // Prevent overlapping appointments for the same therapist
+// In your Appointment.js model file, replace the existing pre-save hook with this:
+
 AppointmentSchema.pre("save", async function (next) {
   // Skip validation for appointment requests without confirmed dates
   if (
@@ -163,38 +165,68 @@ AppointmentSchema.pre("save", async function (next) {
     this.isModified("therapistId") ||
     this.isNew
   ) {
-    const existingAppointment = await this.constructor.findOne({
+    // FIXED: Define inactive statuses that should NOT cause conflicts
+    const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"];
+
+    // Helper function to convert time string to minutes
+    const timeToMinutes = (timeStr) => {
+      const [time, period] = timeStr.split(' ')
+      const [hours, minutes] = time.split(':').map(Number)
+      let totalMinutes = hours * 60 + minutes
+      
+      if (period === 'PM' && hours !== 12) totalMinutes += 12 * 60
+      if (period === 'AM' && hours === 12) totalMinutes -= 12 * 60
+      
+      return totalMinutes
+    }
+
+    // Get all active appointments for this therapist on this date
+    const activeAppointments = await this.constructor.find({
       therapistId: this.therapistId,
       date: this.date,
       _id: { $ne: this._id },
-      status: { $ne: "cancelled" },
-      $or: [
-        {
-          // New appointment starts during an existing appointment
-          startTime: { $lte: this.startTime },
-          endTime: { $gt: this.startTime },
-        },
-        {
-          // New appointment ends during an existing appointment
-          startTime: { $lt: this.endTime },
-          endTime: { $gte: this.endTime },
-        },
-        {
-          // New appointment contains an existing appointment
-          startTime: { $gte: this.startTime },
-          endTime: { $lte: this.endTime },
-        },
-      ],
+      status: { $nin: INACTIVE_STATUSES }, // FIXED: Exclude inactive statuses
     });
 
-    if (existingAppointment) {
-      const error = new Error(
-        "Therapist already has an appointment at this time"
-      );
-      error.statusCode = 400;
-      return next(error);
+    console.log(`Pre-save conflict check for appointment ${this._id}:`);
+    console.log(`New appointment: ${this.startTime} - ${this.endTime}`);
+    console.log(`Active appointments on ${this.date}:`, activeAppointments.map(apt => ({
+      id: apt._id,
+      time: `${apt.startTime} - ${apt.endTime}`,
+      status: apt.status,
+      patient: apt.patientName
+    })));
+
+    // Check for conflicts using proper time comparison
+    const newStartMinutes = timeToMinutes(this.startTime);
+    const newEndMinutes = timeToMinutes(this.endTime);
+
+    for (const existing of activeAppointments) {
+      const existingStartMinutes = timeToMinutes(existing.startTime);
+      const existingEndMinutes = timeToMinutes(existing.endTime);
+
+      // Check if times overlap
+      const hasOverlap = (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes);
+      
+      console.log(`Checking overlap with ${existing._id}:`, {
+        existing: `${existingStartMinutes}-${existingEndMinutes} (${existing.startTime}-${existing.endTime})`,
+        new: `${newStartMinutes}-${newEndMinutes} (${this.startTime}-${this.endTime})`,
+        hasOverlap: hasOverlap
+      });
+
+      if (hasOverlap) {
+        const error = new Error(
+          `Therapist already has an appointment at this time: ${existing.startTime} - ${existing.endTime} (${existing.status})`
+        );
+        error.statusCode = 400;
+        console.log(`❌ CONFLICT FOUND in pre-save hook with appointment ${existing._id}`);
+        return next(error);
+      }
     }
+
+    console.log(`✅ NO CONFLICTS found in pre-save hook`);
   }
+
   next();
 });
 
