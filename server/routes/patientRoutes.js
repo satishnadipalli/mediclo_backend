@@ -33,6 +33,7 @@ router.route("/register").post(createPatientValidation, validateRequest, createP
 // PUT /api/patients/:id - Update patient
 // DELETE /api/patients/:id - Delete patient
 router.route("/:id").get(getPatient).put(updatePatientValidation, validateRequest, updatePatient).delete(deletePatient)
+router.delete("/:id",deletePatient);
 
 // POST /api/patients/:id/notes - Add a note to patient (admin and therapist only)
 router.route("/:id/notes").get(async (req, res, next) => {
