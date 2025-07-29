@@ -22,4 +22,6 @@ router.post(
   sendRenewalReminder
 );
 
+router.post("/motivation", protect, authorize("admin"), sendMotivationalQuote);
+
 module.exports = router;
