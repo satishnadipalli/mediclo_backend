@@ -6,6 +6,7 @@ const {
   getAllEmails,
   getSingleEmail,
   sendRenewalReminder,
+  sendMotivationalQuote,
 } = require("../controllers/emailController");
 
 //Subscribed User
