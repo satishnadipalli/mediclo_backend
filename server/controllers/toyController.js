@@ -33,6 +33,8 @@ exports.getToys = async (req, res) => {
   try {
     const query = {};
 
+
+    // console.log("________________---")
     // Add search functionality
     if (req.query.search) {
       query.$or = [

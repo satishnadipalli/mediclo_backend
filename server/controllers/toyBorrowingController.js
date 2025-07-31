@@ -50,12 +50,14 @@ exports.returnToyValidation = [
 // @route   GET /api/toys/borrowings
 // @access  Private
 exports.getActiveBorrowings = async (req, res) => {
-  console.log("HI")
+  console.log("HI -------------------")
   try {
     const query = { returnDate: { $exists: false } };
 
     console.log("Hello")
     // Add search by borrower name or email
+    console.log("--------------------",req.query.search)
+
     if (req.query.search) {
       query.$or = [
         { borrowerName: { $regex: req.query.search, $options: "i" } },

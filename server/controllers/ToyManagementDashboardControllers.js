@@ -730,3 +730,32 @@ exports.sendRemainderByBororrwerId = async (req, res) => {
     });
   }
 };
+
+
+exports.getActiveBorrowings = async (req, res) => {
+  try {
+    const activeBorrowings = await Borrowing.find({
+      status: "Borrowed",
+    })
+      .populate({
+        path: "toyId",
+        select: "name category image",
+      })
+      .populate({
+        path: "toyUnitId",
+        select: "unitNumber condition",
+      })
+      .sort({ issueDate: -1 });
+
+    res.json({
+      success: true,
+      count: activeBorrowings.length,
+      data: activeBorrowings,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};

@@ -3,7 +3,7 @@ const { protect, authorize } = require("../middleware/authMiddleware");
 const { smartSearch, processReturnValidation, processMultipleReturns } = require("../controllers/borrowerController");
 const router = express.Router();
 
-const { ToyStats, getBorrowedToys, sendRemainder, getBorrowingById, getToyDetails, getAllBorrowers, getBorrowerByEmail, sendRemainderToEmail, getBorrowersById, sendRemainderByBororrwerId } = require("../controllers/ToyManagementDashboardControllers");
+const { ToyStats, getBorrowedToys, sendRemainder, getBorrowingById, getToyDetails, getAllBorrowers, getBorrowerByEmail, sendRemainderToEmail, getBorrowersById, sendRemainderByBororrwerId, getActiveBorrowings } = require("../controllers/ToyManagementDashboardControllers");
 const { getAvailableToyUnits } = require("../controllers/toyBorrowingController");
 
 
@@ -37,6 +37,7 @@ router.get("/borrowerss/:borrowerId", getBorrowersById);
 
 router.post("/borrowers/:borrowerId/send-reminder", sendRemainderByBororrwerId);
 
+router.get("/process-return/active-borrowings", protect, authorize("admin", "staff"), getActiveBorrowings);
 
 
 module.exports = router;

@@ -135,7 +135,7 @@ exports.createTherapist = async (req, res, next) => {
 
 // @desc    Update therapist profile
 // @route   PUT /api/therapists/:id
-// @access  Private/Admin
+// @access  Private/Admin  
 exports.updateTherapist = async (req, res, next) => {
   try {
     // Check for validation errors

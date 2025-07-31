@@ -29,6 +29,8 @@ exports.getBorrowers = async (req, res) => {
   try {
     const query = {};
 
+    // console.log("hi-----------------------------------------")
+
     // Add search by name, email or phone
     if (req.query.search) {
       query.$or = [
