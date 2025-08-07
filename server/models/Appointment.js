@@ -1,22 +1,16 @@
-const mongoose = require("mongoose");
+const mongoose = require("mongoose")
 
-const AppointmentSchema = new mongoose.Schema(
+const appointmentSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: false,
     },
     patientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Patient",
-    },
-    therapistId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    serviceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Service",
+      required: false,
     },
     patientName: {
       type: String,
@@ -24,6 +18,7 @@ const AppointmentSchema = new mongoose.Schema(
     },
     fatherName: {
       type: String,
+      required: false,
     },
     email: {
       type: String,
@@ -31,12 +26,17 @@ const AppointmentSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
+      required: false,
+    },
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
       required: true,
     },
-    consultationMode: {
-      type: String,
-      enum: ["in-person", "video-call", "phone"],
-      default: "in-person",
+    therapistId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
     date: {
       type: Date,
@@ -52,182 +52,247 @@ const AppointmentSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["initial assessment", "follow-up", "therapy session", "other"],
+      enum: ["initial assessment", "therapy session", "follow-up", "group therapy session"],
       default: "initial assessment",
     },
-    status: {
+    consultationMode: {
       type: String,
-      enum: [
-        "scheduled",
-        "rescheduled",
-        "cancelled",
-        "no-show",
-        "pending-assignment",
-        "pending_confirmation",
-        "converted",
-        "completed",
-        "confirmed"
-      ],
-      default: "scheduled",
+      enum: ["in-person", "video-call", "phone"],
+      default: "in-person",
     },
     notes: {
       type: String,
+      default: "",
     },
-    //payment model
+    address: {
+      type: String,
+      default: "",
+    },
     payment: {
       amount: {
         type: Number,
         default: 0,
+      },
+      method: {
+        type: String,
+        enum: ["cash", "upi", "not_specified"],
+        default: "not_specified",
       },
       status: {
         type: String,
         enum: ["pending", "paid", "refunded"],
         default: "pending",
       },
-      method: {
-        type: String,
-        enum: ["upi","card", "cash", "insurance", "not_specified"],
-        default: "not_specified",
-      },
     },
-    // Adding address field for appointment location
-    address: {
-      type: String,
-    },
-    // Adding documents field for uploading medical records
-    documents: {
-      type: [String],
-      default: [],
-    },
-    // Adding consent field for patient consent
     consent: {
       type: Boolean,
       default: false,
-      required:false
     },
-    //total number of sessions prescribed by therapist
     totalSessions: {
       type: Number,
-      default: 0,
+      default: 1,
     },
-    //number of paid sessions
-    sessionsPaid: {
-      type: Number,
-      default: 0,
-    },
-    //number of completed sessions
-    sessionsCompleted: {
-      type: Number,
-      default: 0,
+    status: {
+      type: String,
+      enum: ["scheduled", "confirmed", "in-progress", "completed", "cancelled", "no-show", "rescheduled", "converted"],
+      default: "scheduled",
     },
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: false,
     },
     assignedAt: {
       type: Date,
+      default: Date.now,
     },
-    isDraft: {
+    cancelledAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
+    },
+    rescheduledFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Appointment",
+    },
+    rescheduledTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Appointment",
+    },
+    // Group session fields
+    isGroupSession: {
       type: Boolean,
       default: false,
+    },
+    groupSessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: false,
+    },
+    groupSessionName: {
+      type: String,
+      required: false,
+    },
+    maxCapacity: {
+      type: Number,
+      default: 6,
+      min: 1,
+      max: 20,
+    },
+    // Analytics and tracking
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    lastModifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    remindersSent: {
+      type: Number,
+      default: 0,
+    },
+    lastReminderSent: {
+      type: Date,
     },
   },
   {
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
+  },
+)
+
+// Indexes for better query performance
+appointmentSchema.index({ therapistId: 1, date: 1, startTime: 1 })
+appointmentSchema.index({ patientId: 1, date: 1 })
+appointmentSchema.index({ status: 1, date: 1 })
+appointmentSchema.index({ groupSessionId: 1 })
+appointmentSchema.index({ isGroupSession: 1, date: 1 })
+
+// Virtual for appointment duration
+appointmentSchema.virtual("duration").get(function () {
+  if (!this.startTime || !this.endTime) return 0
+
+  const parseTime = (timeStr) => {
+    const [time, period] = timeStr.split(" ")
+    const [hours, minutes] = time.split(":").map(Number)
+    let totalMinutes = hours * 60 + minutes
+    if (period === "PM" && hours !== 12) totalMinutes += 12 * 60
+    if (period === "AM" && hours === 12) totalMinutes -= 12 * 60
+    return totalMinutes
   }
-);
 
-// Add index for efficient queries
-AppointmentSchema.index({ patientId: 1, date: 1 });
-AppointmentSchema.index({ therapistId: 1, date: 1 });
-AppointmentSchema.index({ userId: 1, date: 1 });
-AppointmentSchema.index({ email: 1 }); // Add index for email searches for public submissions
+  const startMinutes = parseTime(this.startTime)
+  const endMinutes = parseTime(this.endTime)
+  return endMinutes - startMinutes
+})
 
-// Prevent overlapping appointments for the same therapist
-// In your Appointment.js model file, replace the existing pre-save hook with this:
+// Virtual for formatted date
+appointmentSchema.virtual("formattedDate").get(function () {
+  return this.date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
+})
 
-AppointmentSchema.pre("save", async function (next) {
-  // Skip validation for appointment requests without confirmed dates
-  if (
-    this.isPublicSubmission ||
-    this.status === "pending_assignment" ||
-    !this.therapistId
-  ) {
-    return next();
+// Pre-save middleware
+appointmentSchema.pre("save", function (next) {
+  if (this.isModified()) {
+    this.lastModifiedBy = this.createdBy
+  }
+  next()
+})
+
+// Static methods
+appointmentSchema.statics.findByTherapist = function (therapistId, startDate, endDate) {
+  const query = { therapistId }
+  if (startDate && endDate) {
+    query.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
+  }
+  return this.find(query).populate("patientId serviceId")
+}
+
+appointmentSchema.statics.findByPatient = function (patientId, startDate, endDate) {
+  const query = { patientId }
+  if (startDate && endDate) {
+    query.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
+  }
+  return this.find(query).populate("therapistId serviceId")
+}
+
+appointmentSchema.statics.findGroupSessions = function (filters = {}) {
+  const query = { isGroupSession: true, ...filters }
+  return this.find(query)
+    .populate("therapistId", "firstName lastName email")
+    .populate("serviceId", "name category price duration")
+    .sort({ date: 1, startTime: 1 })
+}
+
+appointmentSchema.statics.getConflicts = function (therapistId, date, startTime, endTime, excludeId = null) {
+  const query = {
+    therapistId,
+    date: new Date(date),
+    status: { $nin: ["cancelled", "no-show", "completed"] },
   }
 
-  if (
-    this.isModified("date") ||
-    this.isModified("startTime") ||
-    this.isModified("endTime") ||
-    this.isModified("therapistId") ||
-    this.isNew
-  ) {
-    // FIXED: Define inactive statuses that should NOT cause conflicts
-    const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"];
+  if (excludeId) {
+    query._id = { $ne: excludeId }
+  }
 
-    // Helper function to convert time string to minutes
-    const timeToMinutes = (timeStr) => {
-      const [time, period] = timeStr.split(' ')
-      const [hours, minutes] = time.split(':').map(Number)
+  return this.find(query).then((appointments) => {
+    const parseTime = (timeStr) => {
+      const [time, period] = timeStr.split(" ")
+      const [hours, minutes] = time.split(":").map(Number)
       let totalMinutes = hours * 60 + minutes
-      
-      if (period === 'PM' && hours !== 12) totalMinutes += 12 * 60
-      if (period === 'AM' && hours === 12) totalMinutes -= 12 * 60
-      
+      if (period === "PM" && hours !== 12) totalMinutes += 12 * 60
+      if (period === "AM" && hours === 12) totalMinutes -= 12 * 60
       return totalMinutes
     }
 
-    // Get all active appointments for this therapist on this date
-    const activeAppointments = await this.constructor.find({
-      therapistId: this.therapistId,
-      date: this.date,
-      _id: { $ne: this._id },
-      status: { $nin: INACTIVE_STATUSES }, // FIXED: Exclude inactive statuses
-    });
+    const newStartMinutes = parseTime(startTime)
+    const newEndMinutes = parseTime(endTime)
 
-    console.log(`Pre-save conflict check for appointment ${this._id}:`);
-    console.log(`New appointment: ${this.startTime} - ${this.endTime}`);
-    console.log(`Active appointments on ${this.date}:`, activeAppointments.map(apt => ({
-      id: apt._id,
-      time: `${apt.startTime} - ${apt.endTime}`,
-      status: apt.status,
-      patient: apt.patientName
-    })));
+    return appointments.filter((apt) => {
+      const existingStartMinutes = parseTime(apt.startTime)
+      const existingEndMinutes = parseTime(apt.endTime)
 
-    // Check for conflicts using proper time comparison
-    const newStartMinutes = timeToMinutes(this.startTime);
-    const newEndMinutes = timeToMinutes(this.endTime);
+      // Check for time overlap
+      return newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes
+    })
+  })
+}
 
-    for (const existing of activeAppointments) {
-      const existingStartMinutes = timeToMinutes(existing.startTime);
-      const existingEndMinutes = timeToMinutes(existing.endTime);
+// Instance methods
+appointmentSchema.methods.canBeRescheduled = function () {
+  return ["scheduled", "confirmed"].includes(this.status) && this.date > new Date()
+}
 
-      // Check if times overlap
-      const hasOverlap = (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes);
-      
-      console.log(`Checking overlap with ${existing._id}:`, {
-        existing: `${existingStartMinutes}-${existingEndMinutes} (${existing.startTime}-${existing.endTime})`,
-        new: `${newStartMinutes}-${newEndMinutes} (${this.startTime}-${this.endTime})`,
-        hasOverlap: hasOverlap
-      });
+appointmentSchema.methods.canBeCancelled = function () {
+  return ["scheduled", "confirmed"].includes(this.status)
+}
 
-      if (hasOverlap) {
-        const error = new Error(
-          `Therapist already has an appointment at this time: ${existing.startTime} - ${existing.endTime} (${existing.status})`
-        );
-        error.statusCode = 400;
-        console.log(`❌ CONFLICT FOUND in pre-save hook with appointment ${existing._id}`);
-        return next(error);
-      }
-    }
+appointmentSchema.methods.isUpcoming = function () {
+  const now = new Date()
+  const appointmentDateTime = new Date(this.date)
+  return appointmentDateTime > now && this.status === "scheduled"
+}
 
-    console.log(`✅ NO CONFLICTS found in pre-save hook`);
+appointmentSchema.methods.markAsCompleted = function () {
+  this.status = "completed"
+  this.completedAt = new Date()
+  return this.save()
+}
+
+appointmentSchema.methods.cancel = function (reason = "") {
+  this.status = "cancelled"
+  this.cancelledAt = new Date()
+  if (reason) {
+    this.notes = this.notes ? `${this.notes}\n\nCancellation reason: ${reason}` : `Cancellation reason: ${reason}`
   }
+  return this.save()
+}
 
-  next();
-});
-
-module.exports = mongoose.model("Appointment", AppointmentSchema);
+module.exports = mongoose.model("Appointment", appointmentSchema)

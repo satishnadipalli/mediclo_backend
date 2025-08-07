@@ -7,7 +7,7 @@ const { body, validationResult } = require("express-validator")
 const sendEmail = require("../utils/mailer")
 const appointmentConfirmation = require("../emails/appointmentConfirmation")
 const appointmentReschedule = require("../emails/appointmentReschedule")
-
+const mongoose = require('mongoose')
 // =======================
 // VALIDATIONS
 // =======================
@@ -397,10 +397,11 @@ exports.updateAppointment = async (req, res) => {
       "04:00 PM",
       "04:45 PM",
       "05:30 PM",
-      "06:15 PM",
-      "07:00 PM",
+      "06:00 PM",
+      "06:45 PM",
+      "07:30 PM", 
     ]
-
+ 
     //Attach latest appointment & age to each patient
     patients = patients.map((patient) => {
       const relevantAppointments = allAppointments.filter(
@@ -442,6 +443,7 @@ exports.updateAppointment = async (req, res) => {
       if (aDate > bDate) return 1
 
       const aSlotIndex = timeOrder.indexOf(a.latestAppointment?.appointmentSlot || "")
+      // A slot a is said to be schedules if thte slting and the final updating aree the better uproachies fo the stiffs
       const bSlotIndex = timeOrder.indexOf(b.latestAppointment?.appointmentSlot || "")
 
       return aSlotIndex - bSlotIndex
@@ -977,10 +979,114 @@ exports.getAppointments = async (req, res) => {
       })
       .sort({ date: 1, startTime: 1 })
 
+    // Separate individual appointments and group sessions
+    const individualAppointments = []
+    const groupSessionsMap = new Map()
+
+    appointments.forEach((apt) => {
+      if (apt.isGroupSession && apt.groupSessionId) {
+        const groupId = apt.groupSessionId.toString()
+
+        if (!groupSessionsMap.has(groupId)) {
+          groupSessionsMap.set(groupId, {
+            _id: groupId,
+            isGroupSession: true,
+            groupSessionId: apt.groupSessionId,
+            groupSessionName: apt.groupSessionName,
+            maxCapacity: apt.maxCapacity,
+            date: apt.date,
+            startTime: apt.startTime,
+            endTime: apt.endTime,
+            therapistId: apt.therapistId,
+            serviceId: apt.serviceId,
+            type: apt.type,
+            consultationMode: apt.consultationMode,
+            notes: apt.notes,
+            status: apt.status, // We'll determine the overall status
+            assignedBy: apt.assignedBy,
+            assignedAt: apt.assignedAt,
+            createdAt: apt.createdAt,
+            updatedAt: apt.updatedAt,
+            patients: [],
+            totalRevenue: 0,
+            paidRevenue: 0,
+            pendingRevenue: 0,
+          })
+        }
+
+        const groupSession = groupSessionsMap.get(groupId)
+
+        // Add patient to the group
+        groupSession.patients.push({
+          _id: apt._id,
+          patientId: apt.patientId,
+          patientName: apt.patientName,
+          fatherName: apt.fatherName,
+          email: apt.email,
+          phone: apt.phone,
+          payment: apt.payment,
+          status: apt.status,
+          totalSessions: apt.totalSessions,
+          sessionsCompleted: apt.sessionsCompleted,
+          sessionsPaid: apt.sessionsPaid,
+          consent: apt.consent,
+          notes: apt.notes,
+        })
+
+        // Calculate revenue
+        groupSession.totalRevenue += apt.payment?.amount || 0
+        if (apt.payment?.status === "paid") {
+          groupSession.paidRevenue += apt.payment.amount || 0
+        } else if (apt.payment?.status === "pending") {
+          groupSession.pendingRevenue += apt.payment.amount || 0
+        }
+
+        // Determine overall group status (priority: cancelled > completed > confirmed > scheduled)
+        const statusPriority = {
+          cancelled: 4,
+          "no-show": 3,
+          completed: 2,
+          confirmed: 1,
+          scheduled: 0,
+        }
+
+        const currentPriority = statusPriority[groupSession.status] || 0
+        const newPriority = statusPriority[apt.status] || 0
+
+        if (newPriority > currentPriority) {
+          groupSession.status = apt.status
+        }
+      } else {
+        // Individual appointment
+        individualAppointments.push(apt)
+      }
+    })
+
+    // Convert group sessions map to array
+    const groupSessions = Array.from(groupSessionsMap.values())
+
+    // Combine individual appointments and group sessions
+    const combinedData = [...individualAppointments, ...groupSessions].sort((a, b) => {
+      // Sort by date first, then by start time
+      const dateA = new Date(a.date)
+      const dateB = new Date(b.date)
+
+      if (dateA.getTime() !== dateB.getTime()) {
+        return dateA.getTime() - dateB.getTime()
+      }
+
+      // If dates are same, sort by start time
+      const timeA = a.startTime
+      const timeB = b.startTime
+      return timeA.localeCompare(timeB)
+    })
+
     res.status(200).json({
       success: true,
-      count: appointments.length,
-      data: appointments,
+      count: combinedData.length,
+      individualCount: individualAppointments.length,
+      groupSessionsCount: groupSessions.length,
+      data: combinedData,
     })
   } catch (err) {
     console.error("Get appointments error:", err)
@@ -996,7 +1102,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
   try {
     const requestedDate = req.query.date
     let dateStart, dateEnd
-
+    
     if (requestedDate) {
       const targetDate = new Date(requestedDate)
       dateStart = new Date(targetDate.setHours(0, 0, 0, 0))
@@ -1012,7 +1118,6 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         $gte: dateStart,
         $lte: dateEnd,
       },
-      // ADD THIS LINE: Exclude cancelled appointments
       status: { $ne: "cancelled" },
     }
 
@@ -1024,7 +1129,7 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       .populate("therapistId", "firstName lastName email specialization designation")
       .populate("patientId", "fullName childName age dateOfBirth childDOB gender childGender")
       .populate("serviceId", "name price duration")
-      .sort({ createdAt: -1 }) // Sort by newest first to prioritize recent appointments
+      .sort({ createdAt: -1 })
 
     const timeSlots = [
       "09:15 AM",
@@ -1039,20 +1144,21 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       "04:00 PM",
       "04:45 PM",
       "05:30 PM",
-      "06:15 PM",
-      "07:00 PM",
+      "06:00 PM",
+      "06:45 PM",
+      "07:30 PM",
     ]
 
     const calendar = {}
 
-    // First, initialize calendar with therapists even if they have no appointments
+    // Initialize calendar with therapists
     let therapists = []
     if (req.user.role === "admin" || req.user.role === "receptionist") {
       therapists = await User.find({
         role: "therapist",
         isActive: true,
       }).select("firstName lastName designation")
-
+      
       therapists.forEach((therapist) => {
         const therapistName = `Dr. ${therapist.firstName} ${therapist.lastName} (${therapist.designation || "N/A"})`
         calendar[therapistName] = {}
@@ -1062,11 +1168,15 @@ exports.getAppointmentsCalendarView = async (req, res) => {
       })
     }
 
+    // Group appointments by therapist, time slot, and group session
+    const appointmentGroups = {}
+
     appointments.forEach((appt) => {
       const therapist = appt.therapistId
       if (!therapist || !therapist.firstName || !therapist.lastName) return
 
       const therapistName = `Dr. ${therapist.firstName} ${therapist.lastName} (${therapist.designation || "N/A"})`
+      const timeSlot = appt.startTime
 
       if (!calendar[therapistName]) {
         calendar[therapistName] = {}
@@ -1075,45 +1185,101 @@ exports.getAppointmentsCalendarView = async (req, res) => {
         })
       }
 
-      const startFormatted = appt.startTime
-      if (timeSlots.includes(startFormatted) && !calendar[therapistName][startFormatted]) {
-        const patientName = appt.patientName || appt.patientId?.fullName || appt.patientId?.childName || "N/A"
+      if (!timeSlots.includes(timeSlot)) return
 
-        const duration = calculateDuration(appt.startTime, appt.endTime)
+      // Create grouping key
+      const groupKey = `${therapistName}_${timeSlot}_${appt.groupSessionId || 'individual_' + appt._id}`
 
-        calendar[therapistName][startFormatted] = {
-          id: appt._id.toString(),
-          patientId: appt.patientId?._id?.toString() || null,
-          doctorId: therapist._id.toString(),
-          patientName: patientName,
-          type: appt.type || "initial assessment",
-          status: appt.status || "scheduled",
-          duration: duration,
-          payment: {
-            amount: appt.payment?.amount || 0,
-            status: appt.payment?.status || "pending",
-            method: appt.payment?.method || "not_specified",
-          },
-          totalSessions: appt.totalSessions || 0,
-          sessionsPaid: appt.sessionsPaid || 0,
-          sessionsCompleted: appt.sessionsCompleted || 0,
-          phone: appt.phone || "N/A",
-          email: appt.email || "N/A",
-          notes: appt.notes || "",
-          consultationMode: appt.consultationMode || "in-person",
-          fatherName: appt.fatherName || "",
-          address: appt.address || "",
-          serviceInfo: appt.serviceId
-            ? {
-                name: appt.serviceId.name,
-                price: appt.serviceId.price,
-                duration: appt.serviceId.duration,
-              }
-            : null,
-          createdAt: appt.createdAt,
-          updatedAt: appt.updatedAt,
-          consent: appt.consent || false,
-          isDraft: appt.isDraft || false,
+      if (!appointmentGroups[groupKey]) {
+        appointmentGroups[groupKey] = {
+          therapistName,
+          timeSlot,
+          isGroupSession: appt.isGroupSession || false,
+          groupSessionId: appt.groupSessionId,
+          groupSessionName: appt.groupSessionName,
+          appointments: []
+        }
+      }
+
+      // Create appointment object
+      const patientName = appt.patientName || appt.patientId?.fullName || appt.patientId?.childName || "N/A"
+      const duration = calculateDuration(appt.startTime, appt.endTime)
+
+      const appointmentObj = {
+        id: appt._id.toString(),
+        patientId: appt.patientId?._id?.toString() || null,
+        doctorId: therapist._id.toString(),
+        patientName: patientName,
+        type: appt.type || "initial assessment",
+        status: appt.status || "scheduled",
+        duration: duration,
+        payment: {
+          amount: appt.payment?.amount || 0,
+          status: appt.payment?.status || "pending",
+          method: appt.payment?.method || "not_specified",
+        },
+        totalSessions: appt.totalSessions || 0,
+        sessionsPaid: appt.sessionsPaid || 0,
+        sessionsCompleted: appt.sessionsCompleted || 0,
+        phone: appt.phone || "N/A",
+        email: appt.email || "N/A",
+        notes: appt.notes || "",
+        consultationMode: appt.consultationMode || "in-person",
+        fatherName: appt.fatherName || "",
+        address: appt.address || "",
+        serviceInfo: appt.serviceId
+          ? {
+              name: appt.serviceId.name,
+              price: appt.serviceId.price,
+              duration: appt.serviceId.duration,
+            }
+          : null,
+        createdAt: appt.createdAt,
+        updatedAt: appt.updatedAt,
+        consent: appt.consent || false,
+        isDraft: appt.isDraft || false,
+      }
+
+      appointmentGroups[groupKey].appointments.push(appointmentObj)
+    })
+
+    // Process grouped appointments and assign to calendar
+    Object.values(appointmentGroups).forEach((group) => {
+      const { therapistName, timeSlot, isGroupSession, groupSessionId, groupSessionName, appointments } = group
+
+      if (calendar[therapistName] && calendar[therapistName][timeSlot] === null) {
+        if (isGroupSession && appointments.length > 1) {
+          // Group session with multiple patients
+          calendar[therapistName][timeSlot] = {
+            isGroupSession: true,
+            groupSessionId: groupSessionId,
+            groupSessionName: groupSessionName,
+            doctorId: appointments[0].doctorId,
+            totalPatients: appointments.length,
+            duration: appointments[0].duration,
+            type: appointments[0].type,
+            status: appointments[0].status,
+            consultationMode: appointments[0].consultationMode,
+            patients: appointments.map(apt => ({
+              id: apt.id,
+              patientId: apt.patientId,
+              patientName: apt.patientName,
+              phone: apt.phone,
+              email: apt.email,
+              fatherName: apt.fatherName,
+              payment: apt.payment,
+              notes: apt.notes,
+              address: apt.address,
+              serviceInfo: apt.serviceInfo,
+              createdAt: apt.createdAt,
+              updatedAt: apt.updatedAt
+            })),
+            totalRevenue: appointments.reduce((sum, apt) => sum + (apt.payment?.amount || 0), 0),
+            serviceInfo: appointments[0].serviceInfo
+          }
+        } else {
+          // Individual appointment (or single patient in group)
+          calendar[therapistName][timeSlot] = appointments[0]
         }
       }
     })
@@ -1198,8 +1364,9 @@ exports.getAppointmentsByDate = async (req, res) => {
       "04:00 PM",
       "04:45 PM",
       "05:30 PM",
-      "06:15 PM",
-      "07:00 PM",
+      "06:00 PM",
+      "06:45 PM",
+      "07:30 PM",
     ]
 
     const calculateDuration = (start, end) => {
@@ -1378,41 +1545,6 @@ exports.updateAppointmentStatus = async (req, res) => {
       success: false,
       error: "Server Error",
     })
-  }
-}
-
-// @desc    Get all upcoming appointments for all therapists
-// @route   GET /api/appointments/upcoming/all
-// @access  Private (Admin, Receptionist)
-exports.getAllUpcomingAppointmentsForTherapists = async (req, res) => {
-  try {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0) // Start of today
-
-    // Only allow access to admin or receptionist
-    // if (!["admin", "receptionist"].includes(req?.user?.role)) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     error: "Access denied: Admin or Receptionist only",
-    //   });
-    // }
-
-    const appointments = await Appointment.find({
-      date: { $gte: today },
-    })
-      .populate("therapistId", "firstName lastName email")
-      .populate("patientId", "fullName")
-      .populate("serviceId", "name category")
-      .sort({ date: 1, startTime: 1 })
-
-    res.status(200).json({
-      success: true,
-      count: appointments.length,
-      data: appointments,
-    })
-  } catch (error) {
-    console.error("Error fetching upcoming appointments:", error)
-    res.status(500).json({ success: false, error: "Server Error" })
   }
 }
 
@@ -1836,8 +1968,9 @@ exports.updatePatientAppointmentsPayment = async (req, res) => {
       "04:00 PM",
       "04:45 PM",
       "05:30 PM",
-      "06:15 PM",
-      "07:00 PM",
+      "06:00 PM",
+      "06:45 PM",
+      "07:30 PM",
     ]
 
     patients = patients.map((patient) => {
@@ -1965,7 +2098,7 @@ exports.getPatientsWithAppointments = async (req, res) => {
 
         console.log(appointments)
 
-        // Transform appointments to include payment details
+        // Transform appointments to include payment details AND group session info
         const transformedAppointments = appointments.map((apt) => ({
           _id: apt._id,
           date: apt.date,
@@ -1973,6 +2106,11 @@ exports.getPatientsWithAppointments = async (req, res) => {
           endTime: apt.endTime,
           type: apt.type,
           status: apt.status,
+          // NEW: Add group session information
+          isGroupSession: apt.isGroupSession || false,
+          groupSessionName: apt.groupSessionName || null,
+          groupSessionId: apt.groupSessionId || null,
+          maxCapacity: apt.maxCapacity || null,
           payment: {
             amount: apt.payment?.amount || 0,
             status: apt.payment?.status || "pending",
@@ -2149,6 +2287,702 @@ exports.processAppointmentPayment = async (req, res) => {
       success: false,
       message: "Failed to process payment",
       error: error.message,
+    })
+  }
+}
+
+
+
+// Group appointments 
+// @desc    Create group appointment with multiple patients
+// @route   POST /api/appointments/group
+// @access  Private (Admin, Receptionist)
+exports.createGroupAppointment = async (req, res) => {
+  try {
+    console.log("=== CREATE GROUP APPOINTMENT START ===")
+    console.log("Request body:", JSON.stringify(req.body, null, 2))
+
+    const {
+      therapistId,
+      serviceId,
+      date,
+      startTime,
+      endTime,
+      type,
+      consultationMode,
+      notes,
+      paymentMethod,
+      groupSessionName,
+      maxCapacity,
+      patients, // Array of patient objects
+    } = req.body
+
+    console.log("patints",patients)
+    // return;
+
+    // Validate required fields
+    if (!therapistId || !serviceId || !date || !startTime || !endTime || !patients || patients.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: therapistId, serviceId, date, startTime, endTime, and patients are required",
+      })
+    }
+
+    if (!groupSessionName || !groupSessionName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "Group session name is required",
+      })
+    }
+
+    if (patients.length > (maxCapacity || 10)) {
+      return res.status(400).json({
+        success: false,
+        error: `Maximum ${maxCapacity || 10} patients allowed per group session`,
+      })
+    }
+
+    // Validate service
+    const service = await Service.findById(serviceId)
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        error: "Service not found!",
+      })
+    }
+
+    // Validate therapist
+    const therapist = await User.findById(therapistId)
+    if (!therapist || therapist.role !== "therapist") {
+      return res.status(404).json({
+        success: false,
+        error: "Therapist not found!",
+      })
+    }
+
+    // Generate unique group session ID
+    const groupSessionId = new mongoose.Types.ObjectId()
+
+    console.log("Generated group session ID:", groupSessionId)
+
+    // Check for conflicts with existing NON-GROUP appointments
+    const appointmentDate = new Date(date)
+    const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"]
+
+    // Helper function to convert time string to minutes
+    const timeToMinutes = (timeStr) => {
+      const [time, period] = timeStr.split(" ")
+      const [hours, minutes] = time.split(":").map(Number)
+      let totalMinutes = hours * 60 + minutes
+
+      if (period === "PM" && hours !== 12) totalMinutes += 12 * 60
+      if (period === "AM" && hours === 12) totalMinutes -= 12 * 60
+
+      return totalMinutes
+    }
+
+    const newStartMinutes = timeToMinutes(startTime)
+    const newEndMinutes = timeToMinutes(endTime)
+
+    // Check for conflicts with existing appointments (excluding group sessions)
+    const conflictingAppointments = await Appointment.find({
+      therapistId: therapistId,
+      date: appointmentDate,
+      status: { $nin: INACTIVE_STATUSES },
+      $or: [
+        { isGroupSession: { $ne: true } }, // Non-group appointments
+        { isGroupSession: { $exists: false } }, // Legacy appointments without group field
+      ],
+    })
+
+    console.log(`Found ${conflictingAppointments.length} existing non-group appointments to check`)
+
+    for (const existing of conflictingAppointments) {
+      const existingStartMinutes = timeToMinutes(existing.startTime)
+      const existingEndMinutes = timeToMinutes(existing.endTime)
+
+      // Check if times overlap
+      const hasOverlap = newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes
+
+      if (hasOverlap) {
+        console.log(`❌ CONFLICT FOUND with appointment ${existing._id}`)
+        return res.status(400).json({
+          success: false,
+          error: `Therapist already has an individual appointment at this time: ${existing.startTime} - ${existing.endTime}`,
+        })
+      }
+    }
+
+    // Check if any of the selected patients already have appointments at this time
+    const patientIds = patients.map((p) => p.patientId).filter(Boolean)
+    const patientConflicts = await Appointment.find({
+      patientId: { $in: patientIds },
+      date: appointmentDate,
+      status: { $nin: INACTIVE_STATUSES },
+    })
+
+    // if (patientConflicts.length > 0) {
+      
+    //   const conflictingPatients = patientConflicts.map((apt) => apt.patientName).join(", ")
+    //   console.log("confil",conflictingPatients)
+    //   return res.status(400).json({
+    //     success: false,
+    //     error: `The following patients already have appointments at this time: ${conflictingPatients}`,
+    //   })
+    // }
+
+    console.log("✅ No conflicts found. Creating group appointments...")
+
+    // Create individual appointments for each patient in the group
+    const appointmentPromises = patients.map((patient, index) => {
+      const appointmentData = {
+        userId: req?.user?._id,
+        patientId: patient.patientId,
+        patientName: patient.patientName,
+        fatherName: patient.fatherName || "",
+        email: patient.email || "",
+        phone: patient.phone || "",
+        serviceId,
+        therapistId,
+        date: appointmentDate,
+        startTime,
+        endTime,
+        type: type || "group therapy session",
+        consultationMode: consultationMode || "in-person",
+        notes: `${notes || ""}\n\nGroup Session: ${groupSessionName}\nParticipants: ${patients.length}/${maxCapacity}`,
+        payment: {
+          amount: service.price || 0,
+          method: paymentMethod || "not_specified",
+          status: "pending",
+        },
+        consent: false,
+        totalSessions: 1,
+        status: "scheduled",
+        assignedBy: req?.user?._id,
+        assignedAt: new Date(),
+        // Group session specific fields
+        isGroupSession: true,
+        groupSessionId: groupSessionId,
+        groupSessionName: groupSessionName,
+        maxCapacity: maxCapacity || 6,
+      }
+
+      console.log(`Creating appointment ${index + 1} for patient: ${patient.patientName}`)
+      return Appointment.create(appointmentData)
+    })
+
+    const createdAppointments = await Promise.all(appointmentPromises)
+
+    console.log(createdAppointments,"created appointments")
+
+    console.log(`✅ Successfully created ${createdAppointments.length} group appointments`)
+
+    // Send confirmation emails to all patients
+    const emailPromises = createdAppointments.map(async (appointment) => {
+      if (appointment.email) {
+        try {
+          await sendEmail({
+            to: appointment.email,
+            subject: `Group Appointment Confirmation - ${groupSessionName}`,
+            html: appointmentConfirmation({
+              name: appointment.patientName || appointment.fatherName || "Patient",
+              service: service.name,
+              date: appointment.date,
+              startTime: appointment.startTime,
+              endTime: appointment.endTime,
+              therapist: `Dr. ${therapist.firstName} ${therapist.lastName}`,
+              consultationMode: appointment.consultationMode,
+              isGroupSession: true,
+              groupSessionName: groupSessionName,
+              totalParticipants: patients.length,
+            }),
+          })
+          console.log(`Email sent to: ${appointment.email}`)
+        } catch (emailError) {
+          console.error(`Failed to send email to ${appointment.email}:`, emailError.message)
+        }
+      }
+    })
+
+    await Promise.all(emailPromises)
+
+    console.log("=== CREATE GROUP APPOINTMENT SUCCESS ===")
+
+    return res.status(201).json({
+      success: true,
+      message: `Group appointment "${groupSessionName}" created successfully for ${patients.length} patients`,
+      data: {
+        groupSessionId: groupSessionId,
+        groupSessionName: groupSessionName,
+        appointments: createdAppointments,
+        appointmentCount: createdAppointments.length,
+        totalCost: service.price * patients.length,
+        therapist: {
+          name: `Dr. ${therapist.firstName} ${therapist.lastName}`,
+          id: therapist._id,
+        },
+        service: {
+          name: service.name,
+          price: service.price,
+        },
+        schedule: {
+          date: appointmentDate,
+          startTime: startTime,
+          endTime: endTime,
+        },
+      },
+    })
+  } catch (error) {
+    console.error("=== CREATE GROUP APPOINTMENT ERROR ===")
+    console.error("Error details:", error)
+    console.error("Error stack:", error.stack)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: error.message,
+    })
+  }
+}
+
+// @desc    Get group appointments
+// @route   GET /api/appointments/group
+// @access  Private (Admin, Receptionist, Therapist)
+exports.getGroupAppointments = async (req, res) => {
+  try {
+    const query = { isGroupSession: true }
+
+    // If user is a therapist, limit to their appointments
+    if (req.user.role === "therapist") {
+      query.therapistId = req.user._id
+    }
+
+    // Filter by status
+    if (req.query.status) {
+      query.status = req.query.status
+    }
+
+    // Filter by date range
+    if (req.query.startDate && req.query.endDate) {
+      query.date = {
+        $gte: new Date(req.query.startDate),
+        $lte: new Date(req.query.endDate),
+      }
+    }
+
+    const groupAppointments = await Appointment.find(query)
+      .populate({
+        path: "patientId",
+        select: "fullName firstName lastName dateOfBirth gender",
+      })
+      .populate({
+        path: "therapistId",
+        select: "firstName lastName email",
+        model: "User",
+      })
+      .populate({
+        path: "serviceId",
+        select: "name category price duration",
+      })
+      .sort({ date: 1, startTime: 1 })
+
+    // Group appointments by groupSessionId
+    const groupedSessions = {}
+    groupAppointments.forEach((appointment) => {
+      const sessionId = appointment.groupSessionId.toString()
+      if (!groupedSessions[sessionId]) {
+        groupedSessions[sessionId] = {
+          groupSessionId: sessionId,
+          groupSessionName: appointment.groupSessionName,
+          therapist: appointment.therapistId,
+          service: appointment.serviceId,
+          date: appointment.date,
+          startTime: appointment.startTime,
+          endTime: appointment.endTime,
+          type: appointment.type,
+          status: appointment.status,
+          maxCapacity: appointment.maxCapacity,
+          consultationMode: appointment.consultationMode,
+          notes: appointment.notes,
+          patients: [],
+          totalRevenue: 0,
+        }
+      }
+
+      groupedSessions[sessionId].patients.push({
+        _id: appointment._id,
+        patientId: appointment.patientId,
+        patientName: appointment.patientName,
+        fatherName: appointment.fatherName,
+        email: appointment.email,
+        phone: appointment.phone,
+        paymentStatus: appointment.payment?.status || "pending",
+        paymentAmount: appointment.payment?.amount || 0,
+      })
+
+      groupedSessions[sessionId].totalRevenue += appointment.payment?.amount || 0
+    })
+
+    const sessions = Object.values(groupedSessions)
+
+    res.status(200).json({
+      success: true,
+      count: sessions.length,
+      totalAppointments: groupAppointments.length,
+      data: sessions,
+    })
+  } catch (error) {
+    console.error("Get group appointments error:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+// @desc    Update group appointment
+// @route   PUT /api/appointments/group/:groupSessionId
+// @access  Private (Admin, Receptionist)
+exports.updateGroupAppointment = async (req, res) => {
+  try {
+    const { groupSessionId } = req.params
+    const updates = req.body
+
+    // Find all appointments in this group session
+    const groupAppointments = await Appointment.find({
+      groupSessionId: groupSessionId,
+      isGroupSession: true,
+    })
+
+    if (groupAppointments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Group session not found",
+      })
+    }
+
+    // Update all appointments in the group
+    const updatePromises = groupAppointments.map((appointment) => {
+      return Appointment.findByIdAndUpdate(
+        appointment._id,
+        {
+          ...updates,
+          // Preserve group session data
+          isGroupSession: true,
+          groupSessionId: groupSessionId,
+          groupSessionName: updates.groupSessionName || appointment.groupSessionName,
+          maxCapacity: updates.maxCapacity || appointment.maxCapacity,
+        },
+        { new: true, runValidators: true },
+      )
+    })
+
+    const updatedAppointments = await Promise.all(updatePromises)
+
+    res.status(200).json({
+      success: true,
+      message: `Updated ${updatedAppointments.length} appointments in group session`,
+      data: updatedAppointments,
+    })
+  } catch (error) {
+    console.error("Update group appointment error:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+// @desc    Cancel group appointment
+// @route   DELETE /api/appointments/group/:groupSessionId
+// @access  Private (Admin, Receptionist)
+exports.cancelGroupAppointment = async (req, res) => {
+  try {
+    const { groupSessionId } = req.params
+
+    // Find all appointments in this group session
+    const groupAppointments = await Appointment.find({
+      groupSessionId: groupSessionId,
+      isGroupSession: true,
+    })
+
+    if (groupAppointments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Group session not found",
+      })
+    }
+
+    // Cancel all appointments in the group
+    const cancelPromises = groupAppointments.map((appointment) => {
+      return Appointment.findByIdAndUpdate(
+        appointment._id,
+        {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          // Update payment status if needed
+          ...(appointment.payment?.status === "paid" && {
+            "payment.status": "refunded",
+          }),
+        },
+        { new: true },
+      )
+    })
+
+    const cancelledAppointments = await Promise.all(cancelPromises)
+
+    // Send cancellation emails
+    const emailPromises = cancelledAppointments.map(async (appointment) => {
+      if (appointment.email) {
+        try {
+          await sendEmail({
+            to: appointment.email,
+            subject: `Group Session Cancelled - ${appointment.groupSessionName}`,
+            html: `
+              <h2>Group Session Cancelled</h2>
+              <p>Dear ${appointment.patientName || appointment.fatherName},</p>
+              <p>We regret to inform you that the group session "${appointment.groupSessionName}" scheduled for ${appointment.date.toDateString()} at ${appointment.startTime} has been cancelled.</p>
+              <p>We will contact you soon to reschedule.</p>
+              <p>Thank you for your understanding.</p>
+            `,
+          })
+        } catch (emailError) {
+          console.error(`Failed to send cancellation email to ${appointment.email}:`, emailError.message)
+        }
+      }
+    })
+
+    await Promise.all(emailPromises)
+
+    res.status(200).json({
+      success: true,
+      message: `Cancelled group session with ${cancelledAppointments.length} appointments`,
+      data: cancelledAppointments,
+    })
+  } catch (error) {
+    console.error("Cancel group appointment error:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+    })
+  }
+}
+
+
+
+
+
+
+
+// Test controllers
+// Enhanced group session update with individual patient handling
+exports.updateGroupAppointmentEnhanced = async (req, res) => {
+  try {
+    const { groupSessionId } = req.params
+    const { status, notes, groupPaymentStrategy, patientUpdates, globalPayment } = req.body
+
+    console.log("Enhanced group update request:", { groupSessionId, status, groupPaymentStrategy })
+
+    // Find all appointments in this group session
+    const groupAppointments = await Appointment.find({
+      groupSessionId: groupSessionId,
+      isGroupSession: true,
+    })
+
+    if (groupAppointments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Group session not found",
+      })
+    }
+
+    // Update each appointment based on strategy
+    const updatePromises = groupAppointments.map(async (appointment) => {
+      let updateData = {
+        status: status || appointment.status,
+        notes: notes || appointment.notes,
+      }
+
+      // Handle payment strategy
+      if (groupPaymentStrategy === "all-paid") {
+        updateData["payment.status"] = "paid"
+        updateData["payment.method"] = globalPayment?.method || appointment.payment.method
+      } else if (groupPaymentStrategy === "all-pending") {
+        updateData["payment.status"] = "pending"
+        updateData["payment.method"] = globalPayment?.method || appointment.payment.method
+      } else if (groupPaymentStrategy === "keep-current") {
+        // Keep existing payment status
+      }
+
+      // Handle individual patient updates if provided
+      if (patientUpdates && Array.isArray(patientUpdates)) {
+        const patientUpdate = patientUpdates.find(pu => pu.patientId === appointment._id.toString())
+        if (patientUpdate) {
+          if (patientUpdate.payment) {
+            updateData["payment.status"] = patientUpdate.payment.status
+            updateData["payment.method"] = patientUpdate.payment.method
+            updateData["payment.amount"] = patientUpdate.payment.amount
+          }
+          if (patientUpdate.notes) {
+            updateData.notes = patientUpdate.notes
+          }
+        }
+      }
+
+      return Appointment.findByIdAndUpdate(
+        appointment._id,
+        updateData,
+        { new: true, runValidators: true }
+      )
+    })
+
+    const updatedAppointments = await Promise.all(updatePromises)
+
+    res.status(200).json({
+      success: true,
+      message: `Updated ${updatedAppointments.length} appointments in group session`,
+      data: updatedAppointments,
+    })
+  } catch (error) {
+    console.error("Enhanced group update error:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: error.message,
+    })
+  }
+}
+
+// Group session reschedule
+exports.rescheduleGroupAppointment = async (req, res) => {
+  try {
+    const { groupSessionId } = req.params
+    const { date, startTime, endTime, therapistId, reason, individualPaymentStatuses } = req.body
+
+    console.log("Group reschedule request:", { groupSessionId, date, startTime, endTime })
+
+    if (!date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        error: "Date, startTime, and endTime are required",
+      })
+    }
+
+    // Find all appointments in this group session
+    const groupAppointments = await Appointment.find({
+      groupSessionId: groupSessionId,
+      isGroupSession: true,
+    })
+
+    if (groupAppointments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Group session not found",
+      })
+    }
+
+    // Check for conflicts with the new time slot
+    const appointmentDate = new Date(date)
+    const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"]
+
+    const conflictCheck = await Appointment.findOne({
+      therapistId: therapistId || groupAppointments[0].therapistId,
+      date: appointmentDate,
+      _id: { $nin: groupAppointments.map(apt => apt._id) },
+      status: { $nin: INACTIVE_STATUSES },
+      $or: [
+        {
+          startTime: { $lte: startTime },
+          endTime: { $gt: startTime },
+        },
+        {
+          startTime: { $lt: endTime },
+          endTime: { $gte: endTime },
+        },
+        {
+          startTime: { $gte: startTime },
+          endTime: { $lte: endTime },
+        },
+      ],
+    })
+
+    if (conflictCheck) {
+      return res.status(400).json({
+        success: false,
+        error: "Selected time slot is not available",
+      })
+    }
+
+    // Update all appointments in the group
+    const rescheduleNote = `Group rescheduled on ${new Date().toLocaleDateString()}: ${reason || "No reason provided"}`
+    
+    const updatePromises = groupAppointments.map(async (appointment) => {
+      let updateData = {
+        date: appointmentDate,
+        startTime: startTime,
+        endTime: endTime,
+        therapistId: therapistId || appointment.therapistId,
+        status: "scheduled",
+        notes: appointment.notes ? `${appointment.notes}\n${rescheduleNote}` : rescheduleNote,
+      }
+
+      // Handle individual payment statuses if provided
+      if (individualPaymentStatuses && individualPaymentStatuses[appointment._id.toString()]) {
+        updateData["payment.status"] = individualPaymentStatuses[appointment._id.toString()]
+      }
+
+      return Appointment.findByIdAndUpdate(
+        appointment._id,
+        updateData,
+        { new: true, runValidators: true }
+      ).populate("userId patientId therapistId serviceId assignedBy")
+    })
+
+    const updatedAppointments = await Promise.all(updatePromises)
+
+    // Send reschedule emails to all patients
+    const emailPromises = updatedAppointments.map(async (appointment) => {
+      if (appointment.email) {
+        try {
+          const [service, therapist] = await Promise.all([
+            Service.findById(appointment.serviceId),
+            User.findById(appointment.therapistId),
+          ])
+
+          await sendEmail({
+            to: appointment.email,
+            subject: "Your Group Session Has Been Rescheduled",
+            html: appointmentReschedule({
+              name: appointment.patientName || appointment.fatherName || "Patient",
+              service: service?.name || "Group Session",
+              date: appointment.date,
+              startTime: appointment.startTime,
+              endTime: appointment.endTime,
+              therapist: therapist?.fullName || "Therapist",
+              reason,
+              paymentStatus: appointment.payment.status,
+              isGroupSession: true,
+              groupSessionName: appointment.groupSessionName,
+            }),
+          })
+        } catch (emailError) {
+          console.error(`Failed to send reschedule email to ${appointment.email}:`, emailError.message)
+        }
+      }
+    })
+
+    await Promise.all(emailPromises)
+
+    res.status(200).json({
+      success: true,
+      message: `Group session rescheduled successfully for ${updatedAppointments.length} patients`,
+      data: updatedAppointments,
+    })
+  } catch (error) {
+    console.error("Group reschedule error:", error)
+    res.status(500).json({
+      success: false,
+      error: "Server Error",
+      message: error.message,
     })
   }
 }

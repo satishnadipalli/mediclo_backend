@@ -10,6 +10,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async ({ to, subject, html }) => {
+  console.log(process.env.EMAIL_USER)
   try {
     const info = await transporter.sendMail({
       from: `8 Senses" <${process.env.EMAIL_USER}>`,

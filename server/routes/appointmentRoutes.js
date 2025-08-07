@@ -20,7 +20,6 @@ const {
   validateAppointmentRequest,
   validateFormalAppointment,
   getAppointmentsByDate,
-  getAllUpcomingAppointmentsForTherapists,
   updateAppointmentStatusAndDetails,
   createMultipleAppointments,
   updatePatientAppointmentsPayment,
@@ -29,6 +28,14 @@ const {
   getPatientsWithAppointments,
   processAppointmentPayment,
   dashboardRescheduleAppointment,
+  createGroupAppointment,
+  getGroupAppointments,
+  updateGroupAppointment,
+  cancelGroupAppointment,
+  getCalendarView,
+  getDashboardByDate,
+  updateGroupAppointmentEnhanced,
+  rescheduleGroupAppointment,
 
 } = require("../controllers/appointmentController")
 
@@ -80,7 +87,6 @@ router.get("/calendar", protect, authorize("admin", "receptionist", "therapist")
 
 router.get("/by-date", protect, authorize("admin", "receptionist", "therapist"), getAppointmentsByDate)
 
-router.get("/upcoming", getAllUpcomingAppointmentsForTherapists)
 
 // ======================
 // INDIVIDUAL APPOINTMENT ROUTES (MUST COME LAST)
@@ -98,6 +104,24 @@ router.put("/:id/reschedule", protect, authorize("admin", "receptionist", "thera
 router.put("/:id/status", protect, authorize("admin", "receptionist", "therapist"), updateAppointmentStatus)
 // Add this route to your appointments router
 router.put('/:id/dashboard-reschedule', dashboardRescheduleAppointment);
+
+
+
+// Group appointmetn routes
+// Group appointment routes
+router.post("/group", protect, authorize("admin", "receptionist"), createGroupAppointment)
+router.get("/group", protect, authorize("admin", "receptionist", "therapist"), getGroupAppointments)
+router.put("/group/:groupSessionId", protect, authorize("admin", "receptionist"), updateGroupAppointment)
+router.delete("/group/:groupSessionId", protect, authorize("admin", "receptionist"), cancelGroupAppointment)
+
+// Add these routes after your existing group routes
+router.put("/group/:groupSessionId/update", protect, authorize("admin", "receptionist"), updateGroupAppointmentEnhanced)
+router.put("/group/:groupSessionId/reschedule", protect, authorize("admin", "receptionist"), rescheduleGroupAppointment)
+
+// Dashboard and calendar routes
+// router.get("/calendar", protect, authorize("admin", "receptionist", "therapist"), getDashboardByDate)
+// router.get("/calendar-view", protect, authorize("admin", "receptionist", "therapist"), getCalendarView)
+
 
 module.exports = router
 
