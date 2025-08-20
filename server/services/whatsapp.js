@@ -37,9 +37,8 @@ async function sendAppointmentReminder(appointment) {
     console.log("📤 Sending reminder to:", recipient);
 
     await axios.post(
-      `https://graph.facebook.com/v17.0/${HELTAR_NUMBER_ID}/messages`,
+      `https://api.heltar.com/v1/messages`,
       {
-        messaging_product: "whatsapp",
         to: recipient,
         type: "text",
         text: {
@@ -48,7 +47,7 @@ async function sendAppointmentReminder(appointment) {
       },
       {
         headers: {
-          Authorization: `Bearer ${HELTAR_API_KEY}`,
+          Authorization: `Bearer ${HELTAR_API_KEY}`, // your JWT
           "Content-Type": "application/json",
         },
       }
