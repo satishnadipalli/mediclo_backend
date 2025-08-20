@@ -17,6 +17,10 @@ const {
   startRenewalReminderJob,
 } = require("./utils/cronJob");
 const Toy = require("./models/Toy");
+// WhatsApp reminder cron and webhook
+const sendReminders = require("./cron/sendReminders");
+const webhookRoute = require("./routes/webhok");
+
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -67,6 +71,7 @@ const workshopRoutes = require("./routes/workshopRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 //detoxRoutes
 const detoxRoutes = require("./routes/detoxRoutes");
+const heltarWebhook = require("./routes/heltarWebhook");
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -78,6 +83,8 @@ connectDB();
 startOverdueUpdateJob();
 startRenewalReminderJob();
 
+
+sendReminders();
 const app = express();
 
 // Body parser with increased limits for handling file uploads
@@ -166,6 +173,11 @@ app.use("/api/admin", adminRoutes);
 //detox routes
 app.use("/api/detox", detoxRoutes);
 app.use("/api/payments", paymentRoutes);
+
+app.use("/api/whatsapp", webhookRoute);
+
+app.use("/heltar-webhook", heltarWebhook);
+
 
 // Root route
 app.get("/", (req, res) => {

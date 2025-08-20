@@ -19,7 +19,7 @@ const SubscriptionPlanSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, "Please provide a price"],
+      required: [false, "Please provide a price"],
     },
     billingCycle: {
       type: String,
