@@ -144,102 +144,82 @@ exports.getBorrowing = async (req, res) => {
 // @access  Private
 exports.issueToy = async (req, res) => {
   try {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      })
+    // --- Use existing borrower if _id is provided ---
+    let borrower;
+    if (req.body._id) {
+      borrower = await Borrower.findById(req.body._id);
+      if (!borrower) {
+        return res.status(404).json({
+          success: false,
+          error: "Borrower not found with the provided ID",
+        });
+      }
+    } else {
+      // Check if borrower exists by email
+      borrower = await Borrower.findOne({ email: req.body.email });
+
+      // If not, create a new borrower
+      if (!borrower) {
+        borrower = new Borrower({
+          name: req.body.borrowerName,
+          phone: req.body.phone,
+          email: req.body.email,
+          relationship: req.body.relationship,
+          createdBy: req.user._id,
+        });
+        await borrower.save();
+      }
     }
 
-    // --- START: Added Debugging and Error Handling for req.user ---
-    if (!req.user || !req.user._id) {
-      console.error("Authentication Error: req.user or req.user._id is missing.")
-      return res.status(401).json({
-        success: false,
-        error: "Unauthorized: User information missing. Please ensure you are logged in.",
-      })
-    }
-    // --- END: Added Debugging and Error Handling for req.user ---
-
-    // Check if toy exists
-    const toy = await Toy.findById(req.body.toyId)
+    // Validate toy
+    const toy = await Toy.findById(req.body.toyId);
     if (!toy) {
-      return res.status(404).json({
-        success: false,
-        error: "Toy not found",
-      })
+      return res.status(404).json({ success: false, error: "Toy not found" });
     }
 
-    console.log("req.body.toyUnitId",)
-    // Check if toy unit exists and is available
-    const toyUnit = await ToyUnit.findById(req.body.toyUnitId)
-    if (!toyUnit) {
-      return res.status(404).json({
-        success: false,
-        error: "Toy unit not found",
-      })
-    }
-    if (!toyUnit.isAvailable) {
-      return res.status(400).json({
-        success: false,
-        error: "This toy unit is already borrowed",
-      })
+    // Validate toy unit
+    const toyUnit = await ToyUnit.findById(req.body.toyUnitId);
+    if (!toyUnit || !toyUnit.isAvailable) {
+      return res.status(400).json({ success: false, error: "Toy unit not available" });
     }
 
     // Create borrowing record
     const borrowing = new ToyBorrowing({
-      toyId: req.body.toyId,
-      toyUnitId: req.body.toyUnitId,
-      borrowerName: req.body.borrowerName,
-      phone: req.body.phone,
-      email: req.body.email,
-      relationship: req.body.relationship,
+      toyId: toy._id,
+      toyUnitId: toyUnit._id,
+      borrowerId: borrower._id, // assign existing or new borrower
+      borrowerName: borrower.name,
+      phone: borrower.phone,
+      email: borrower.email,
+      relationship: borrower.relationship,
       issueDate: req.body.issueDate,
       dueDate: req.body.dueDate,
       status: "Borrowed",
       conditionOnIssue: toyUnit.condition,
       notes: req.body.notes,
-      issuedBy: req.user._id, // This requires req.user to be populated by auth middleware
-    })
-    await borrowing.save()
+      issuedBy: req.user._id,
+    });
+    await borrowing.save();
 
-    // --- START: Update toy unit and toy availability ---
-    toyUnit.isAvailable = false
-    toyUnit.currentBorrower = borrowing._id // Link the unit to the new borrowing record
-    await toyUnit.save()
-
-    // Update the overall toy's available units count
-    // Assuming toyUnit has a reference to the Toy (e.g., toyId field)
-    // If not, you might need to fetch the toy again using toyUnit.toyId
-    await toy.updateAvailableUnits() // This calls the method on the Toy model
-    // --- END: Update toy unit and toy availability ---
-
-    // Create or update borrower record
-    let borrower = await Borrower.findOne({ email: req.body.email })
-    if (!borrower) {
-      borrower = new Borrower({
-        name: req.body.borrowerName,
-        phone: req.body.phone,
-        email: req.body.email,
-        relationship: req.body.relationship,
-        createdBy: req.user._id, // This also requires req.user
-      })
-      await borrower.save()
-    }
+    // Update toy unit and toy availability
+    toyUnit.isAvailable = false;
+    toyUnit.currentBorrower = borrowing._id;
+    await toyUnit.save();
+    await toy.updateAvailableUnits();
 
     res.status(201).json({
       success: true,
       data: borrowing,
-    })
+    });
   } catch (err) {
-    console.error("Error in issueToy controller:", err) // Log the full error for server-side debugging
+    console.error("Error in issueToy controller:", err);
     res.status(500).json({
       success: false,
-      error: "Server Error: " + err.message, // Send the actual error message to the client
-    })
+      error: "Server Error: " + err.message,
+    });
   }
-}
+};
+
 
 // @desc    Return a toy
 // @route   PUT /api/toys/borrowings/:id/return

@@ -31,13 +31,9 @@ exports.updateBlogValidation = [
 // @desc    Get all blogs
 // @route   GET /api/blogs
 // @access  Public
+// @access Public
 exports.getBlogs = async (req, res, next) => {
   try {
-    // Add filtering and pagination
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const startIndex = (page - 1) * limit;
-
     let query = {};
 
     // Filter by category if provided
@@ -55,27 +51,12 @@ exports.getBlogs = async (req, res, next) => {
       query.isPublished = true;
     }
 
-    // Get total count for pagination
-    const total = await Blog.countDocuments(query);
-
-    // Execute query with pagination
-    const blogs = await Blog.find(query)
-      .sort({ publishDate: -1 })
-      .skip(startIndex)
-      .limit(limit);
-
-    // Pagination result
-    const pagination = {
-      total,
-      pages: Math.ceil(total / limit),
-      page,
-      limit,
-    };
+    // Fetch all blogs (no pagination)
+    const blogs = await Blog.find(query).sort({ publishDate: -1 });
 
     res.status(200).json({
       success: true,
       count: blogs.length,
-      pagination,
       data: blogs,
     });
   } catch (err) {

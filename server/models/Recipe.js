@@ -58,7 +58,11 @@ const RecipeSchema = new mongoose.Schema(
     },
     isGlutenFree: {
       type: Boolean,
-      default: true,
+      default: false,
+    },
+    isCasenFree: {
+      type: Boolean,
+      default: false,
     },
     tags: [
       {
