@@ -36,23 +36,13 @@ exports.getBlogs = async (req, res, next) => {
   try {
     let query = {};
 
-    // Filter by category if provided
-    if (req.query.category) {
-      query.category = req.query.category;
-    }
-
-    // Filter by tag if provided
-    if (req.query.tag) {
-      query.tags = req.query.tag;
-    }
-
     // Filter by published status
     if (!req.user || req.user.role !== "admin") {
       query.isPublished = true;
     }
 
     // Fetch all blogs (no pagination)
-    const blogs = await Blog.find(query).sort({ publishDate: -1 });
+    const blogs = await Blog.find({}).sort({ publishDate: -1 });
 
     res.status(200).json({
       success: true,
