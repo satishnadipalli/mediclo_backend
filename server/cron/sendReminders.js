@@ -3,49 +3,49 @@ const router = express.Router();
 const Appointment = require("../models/Appointment");
 
 function normalizePhone(rawPhone) {
-  if (!rawPhone) return ""; // handle null/undefined safely
+  if (!rawPhone) return "";
 
-  // force to string
-  let phone = String(rawPhone).replace(/^\+/, "");
+  let phone = String(rawPhone).replace(/^\+/, "").trim();
 
-  // if starts with 91 and length > 10, drop it
+  // If starts with "91" and longer than 10 digits, drop country code
   if (phone.startsWith("91") && phone.length > 10) {
     phone = phone.slice(2);
   }
 
-  return phone.trim();
+  return phone;
 }
 
 
 
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
-    const messages = req.body?.entry?.[0]?.changes?.[0]?.value?.messages || [];
-    console.log("📩 Incoming messages:", JSON.stringify(messages, null, 2));
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const messages = changes?.value?.messages || [];
+
+    console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
 
     for (const msg of messages) {
-      const rawFrom = msg.from;
-      const phone = normalizePhone(rawFrom);
-
-      console.log(`☎️ Raw from: ${rawFrom} | Normalized: ${phone}`);
+      const phone = normalizePhone(msg.from);  // 🔥 normalize here
+      console.log("☎ Normalized phone:", phone);
 
       // ✅ Handle button clicks
       if (msg.type === "button" && msg.button?.payload) {
         const reply = msg.button.payload.trim().toLowerCase();
 
         const appointment = await Appointment.findOne({
-          phone, // always normalized
+          phone,
           status: "scheduled",
         }).sort({ date: -1 });
 
         if (!appointment) {
-          console.log(`⚠️ No active appointment found for normalized phone ${phone}`);
+          console.log(`⚠️ No active appointment for ${phone}`);
           continue;
         }
 
-        if (reply === "yes") {
+        if (reply === "yes" || reply === "confirm") {
           appointment.status = "confirmed";
-        } else if (reply === "no") {
+        } else if (reply === "no" || reply === "cancel") {
           appointment.status = "cancelled";
           appointment.cancelledAt = new Date();
         }
@@ -54,17 +54,17 @@ router.post("/whatsapp-webhook", async (req, res) => {
         console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
       }
 
-      // ✅ Handle plain text replies
+      // ✅ Handle text replies ("Yes"/"No")
       if (msg.type === "text" && msg.text?.body) {
         const reply = msg.text.body.trim().toLowerCase();
 
         const appointment = await Appointment.findOne({
-          phone, // always normalized
+          phone,
           status: "scheduled",
         }).sort({ date: -1 });
 
         if (!appointment) {
-          console.log(`⚠️ No active appointment found for normalized phone ${phone}`);
+          console.log(`⚠️ No active appointment for ${phone}`);
           continue;
         }
 
@@ -86,6 +86,7 @@ router.post("/whatsapp-webhook", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
 
 module.exports = router;
 
