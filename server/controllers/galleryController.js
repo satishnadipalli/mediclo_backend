@@ -59,6 +59,7 @@ exports.getGalleryImages = async (req, res, next) => {
         select: "firstName lastName",
       });
 
+      console.log("gallery images",galleryImages);
     res.status(200).json({
       success: true,
       count: galleryImages.length,

@@ -2,9 +2,7 @@ const axios = require("axios");
 const Appointment = require("../models/Appointment");
 
 const HELTAR_API_KEY = process.env.HELTAR_API_KEY;
-const HELTAR_NUMBER_ID = process.env.HELTAR_NUMBER_ID;
 
-console.log(HELTAR_API_KEY, HELTAR_NUMBER_ID);
 // helper to format Indian numbers
 function formatPhoneNumber(number) {
   if (!number) return null;
@@ -16,38 +14,78 @@ function formatPhoneNumber(number) {
     cleaned = cleaned.substring(1);
   }
 
-  // ensure starts with +91
+  // ensure starts with 91
   if (!cleaned.startsWith("91")) {
     cleaned = "91" + cleaned;
   }
 
-  return "+" + cleaned;
+  return cleaned; // no + (heltar expects without plus in clientWaNumber)
 }
 
-async function sendAppointmentReminder(appointment) {
-  const rawNumber = appointment.fatherNumber || appointment.phone;
-  if (!rawNumber) {
-    console.log(`⚠️ No phone number found for appointment ${appointment._id}`);
-    return;
-  }
-
-  const recipient = formatPhoneNumber(rawNumber);
-
+async function sendAppointmentReminder(appointmentId) {
   try {
+    // ✅ populate serviceId to get service name
+    const appointment = await Appointment.findById(appointmentId).populate(
+      "serviceId",
+      "name"
+    );
+    if (!appointment) {
+      console.log("⚠️ Appointment not found");
+      return;
+    }
+
+    const rawNumber = appointment.phone;
+    if (!rawNumber) {
+      console.log(`⚠️ No phone number for appointment ${appointment._id}`);
+      return;
+    }
+
+    const recipient = formatPhoneNumber(rawNumber);
+
     console.log("📤 Sending reminder to:", recipient);
 
     await axios.post(
-      `https://api.heltar.com/v1/messages`,
+      "https://api.heltar.com/v1/messages/send",
       {
-        to: recipient,
-        type: "text",
-        text: {
-          body: `Hello ${appointment.patientName}, this is a reminder for your appointment on ${appointment.formattedDate} at ${appointment.startTime}.`,
-        },
+        messages: [
+          {
+            clientWaNumber: recipient,
+            templateName: "8sensesmessage",
+            templateContent:
+              "Dear Parent,\n\nYour appointment for {{1}} has been fixed at {{2}} on {{3}}.\nKindly confirm your availability.",
+            templateHeader: "IMAGE",
+            languageCode: "en",
+            variables: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "image",
+                    image: {
+                      link: "https://heltar-chat-s3.s3.ap-south-1.amazonaws.com/38BsoxDZZPt-9jS6uLrEipb6u4zPRIXKYAEsn68wFYSensesLogo.png",
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: appointment.serviceId?.name || "Therapy",
+                  },
+                  { type: "text", text: appointment.formattedDate },
+                  { type: "text", text: appointment.startTime },
+                ],
+              },
+            ],
+            messageType: "template",
+          },
+        ],
       },
       {
         headers: {
-          Authorization: `Bearer ${HELTAR_API_KEY}`, // your JWT
+          Authorization: `Bearer ${HELTAR_API_KEY}`,
           "Content-Type": "application/json",
         },
       }

@@ -72,6 +72,7 @@ const adminRoutes = require("./routes/adminRoutes");
 //detoxRoutes
 const detoxRoutes = require("./routes/detoxRoutes");
 const heltarWebhook = require("./routes/heltarWebhook");
+const checkReplies = require("./services/checkReplies"); // 👈 new file
 
 // Load env vars
 dotenv.config({ path: "./config/config.env" });
@@ -84,7 +85,8 @@ startOverdueUpdateJob();
 startRenewalReminderJob();
 
 
-// sendReminders();
+sendReminders();
+checkReplies();
 const app = express();
 
 // Body parser with increased limits for handling file uploads

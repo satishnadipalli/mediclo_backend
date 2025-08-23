@@ -19,7 +19,7 @@ const GallerySchema = new mongoose.Schema(
     },
     publicId: {
       type: String,
-      required: [true, "Cloudinary public ID is required"],
+      required: [false, "Cloudinary public ID is required"],
     },
     category: {
       type: String,
