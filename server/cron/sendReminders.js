@@ -3,8 +3,9 @@ const router = express.Router();
 const Appointment = require("../models/Appointment");
 
 function normalizePhone(rawPhone) {
+  console.log("rawphone before",rawPhone)
   if (!rawPhone) return "";
-
+  console.log("rawphone after",rawPhone)
   let phone = String(rawPhone).replace(/^\+/, "").trim();
 
   // If starts with "91" and longer than 10 digits, drop country code
@@ -12,6 +13,7 @@ function normalizePhone(rawPhone) {
     phone = phone.slice(2);
   }
 
+  console.log(phone)
   return phone;
 }
 
@@ -25,9 +27,11 @@ router.post("/whatsapp-webhook", async (req, res) => {
 
     const msg = messages?.[0];
     if (!msg) {
-      console.log("⚠️ No message found in webhook payload");
+      console.log("⚠️ No message found in webhook payload",msg);
       return res.sendStatus(200);
     }
+
+    console.log(msg)
 
     const phone = normalizePhone(msg.from);
     console.log("☎ Normalized phone:", phone);
