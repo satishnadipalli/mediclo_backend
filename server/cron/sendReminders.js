@@ -1,44 +1,77 @@
-const cron = require("node-cron");
+const express = require("express");
+const router = express.Router();
 const Appointment = require("../models/Appointment");
-const { sendAppointmentReminder } = require("../services/whatsapp");
 
-const sendReminders = () => {
-  // Run every day at 12:00 PM server time (currently every minute for testing)
-  cron.schedule("*/1 * * * *", async () => {
-    try {
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
+// normalize any phone to last 10 digits
+function normalizePhone(phone) {
+  return phone.replace(/\D/g, "").slice(-10);
+}
 
-      // clone for start and end of day
-      const startOfDay = new Date(tomorrow);
-      startOfDay.setHours(0, 0, 0, 0);
+router.post("/whatsapp-webhook", async (req, res) => {
+  try {
+    // WhatsApp payload may be nested
+    const messages = req.body?.entry?.[0]?.changes?.[0]?.value?.messages || [];
+    console.log("📩 Incoming messages:", JSON.stringify(messages, null, 2));
 
-      const endOfDay = new Date(tomorrow);
-      endOfDay.setHours(23, 59, 59, 999);
+    for (const msg of messages) {
+      const phone = normalizePhone(msg.from);
 
-      const appointments = await Appointment.find({
-        date: { $gte: startOfDay, $lt: endOfDay },
-        status: "scheduled",
-      });
+      // ✅ Handle button clicks
+      if (msg.type === "button" && msg.button?.payload) {
+        const reply = msg.button.payload.trim().toLowerCase();
 
-      console.log(`📅 Found ${appointments.length} appointments for tomorrow`);
+        const appointment = await Appointment.findOne({
+          phone,
+          status: "scheduled",
+        }).sort({ date: -1 });
 
-      for (const appointment of appointments) {
-        console.log("📤 Sending appointment reminder:", appointment._id);
+        if (!appointment) {
+          console.log(`⚠️ No active appointment for ${phone}`);
+          continue;
+        }
 
-        // 👉 if your sendAppointmentReminder needs appointmentId
-        await sendAppointmentReminder(appointment._id);
+        if (reply === "yes") {
+          appointment.status = "confirmed";
+        } else if (reply === "no") {
+          appointment.status = "cancelled";
+          appointment.cancelledAt = new Date();
+        }
 
-        // if you want to restrict for one number (like your debug check)
-        // if (appointment.phone === "7993724192") {
-        //   await sendAppointmentReminder(appointment._id);
-        // }
+        await appointment.save();
+        console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
       }
-    } catch (error) {
-      console.error("❌ Error sending daily reminders:", error);
-    }
-  });
-};
 
-module.exports = sendReminders;
+      // ✅ Handle plain text replies ("Yes"/"No")
+      if (msg.type === "text" && msg.text?.body) {
+        const reply = msg.text.body.trim().toLowerCase();
+
+        const appointment = await Appointment.findOne({
+          phone,
+          status: "scheduled",
+        }).sort({ date: -1 });
+
+        if (!appointment) {
+          console.log(`⚠️ No active appointment for ${phone}`);
+          continue;
+        }
+
+        if (reply === "yes") {
+          appointment.status = "confirmed";
+        } else if (reply === "no") {
+          appointment.status = "cancelled";
+          appointment.cancelledAt = new Date();
+        }
+
+        await appointment.save();
+        console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("❌ Webhook error:", err.message);
+    res.sendStatus(500);
+  }
+});
+
+module.exports = router;
