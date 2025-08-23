@@ -1,98 +1,44 @@
-const express = require("express");
-const router = express.Router();
+const cron = require("node-cron");
 const Appointment = require("../models/Appointment");
+const { sendAppointmentReminder } = require("../services/whatsapp");
 
-function normalizePhone(rawPhone) {
-  console.log("rawphone before",rawPhone)
-  if (!rawPhone) return "";
-  console.log("rawphone after",rawPhone)
-  let phone = String(rawPhone).replace(/^\+/, "").trim();
+const sendReminders = () => {
+  // Run every day at 12:00 PM server time (currently every minute for testing)
+  cron.schedule("*/1 * * * *", async () => {
+    try {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
 
-  // If starts with "91" and longer than 10 digits, drop country code
-  if (phone.startsWith("91") && phone.length > 10) {
-    phone = phone.slice(2);
-  }
+      // clone for start and end of day
+      const startOfDay = new Date(tomorrow);
+      startOfDay.setHours(0, 0, 0, 0);
 
-  console.log(phone)
-  return phone;
-}
+      const endOfDay = new Date(tomorrow);
+      endOfDay.setHours(23, 59, 59, 999);
 
-router.post("/whatsapp-webhook", async (req, res) => {
-  try {
-    console.log("🚀 Loaded whatsapp-webhook router at", new Date().toISOString());
-
-    console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
-
-    const entry = req.body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const messages = changes?.value?.messages || [];
-
-    const msg = messages?.[0];
-    if (!msg) {
-      console.log("⚠️ No message found in webhook payload",msg);
-      return res.sendStatus(200);
-    }
-
-    console.log(msg)
-
-    const phone = normalizePhone(msg.from);
-    console.log("☎ Normalized phone:", phone);
-
-    // ✅ Handle button clicks
-    if (msg.type === "button" && msg.button?.payload) {
-      const reply = msg.button.payload.trim().toLowerCase();
-      console.log("🔘 Button reply:", reply);
-
-      const appointment = await Appointment.findOne({
-        phone,
+      const appointments = await Appointment.find({
+        date: { $gte: startOfDay, $lt: endOfDay },
         status: "scheduled",
-      }).sort({ date: -1 });
+      });
 
-      if (!appointment) {
-        console.log(`⚠️ No active appointment for ${phone}`);
-      } else {
-        if (reply === "yes" || reply === "confirm") {
-          appointment.status = "confirmed";
-        } else if (reply === "no" || reply === "cancel") {
-          appointment.status = "cancelled";
-          appointment.cancelledAt = new Date();
-        }
+      console.log(`📅 Found ${appointments.length} appointments for tomorrow`);
 
-        await appointment.save();
-        console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
+      for (const appointment of appointments) {
+        console.log("📤 Sending appointment reminder:", appointment._id);
+
+        // 👉 if your sendAppointmentReminder needs appointmentId
+        await sendAppointmentReminder(appointment._id);
+
+        // if you want to restrict for one number (like your debug check)
+        // if (appointment.phone === "7993724192") {
+        //   await sendAppointmentReminder(appointment._id);
+        // }
       }
+    } catch (error) {
+      console.error("❌ Error sending daily reminders:", error);
     }
+  });
+};
 
-    // ✅ Handle text replies
-    if (msg.type === "text" && msg.text?.body) {
-      const reply = msg.text.body.trim().toLowerCase();
-      console.log("💬 Text reply:", reply);
-
-      const appointment = await Appointment.findOne({
-        phone,
-        status: "scheduled",
-      }).sort({ date: -1 });
-
-      if (!appointment) {
-        console.log(`⚠️ No active appointment for ${phone}`);
-      } else {
-        if (reply === "yes") {
-          appointment.status = "confirmed";
-        } else if (reply === "no") {
-          appointment.status = "cancelled";
-          appointment.cancelledAt = new Date();
-        }
-
-        await appointment.save();
-        console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
-      }
-    }
-
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("❌ Webhook error:", err.message);
-    res.sendStatus(500);
-  }
-});
-
-module.exports = router;
+module.exports = sendReminders;

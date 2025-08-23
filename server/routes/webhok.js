@@ -1,85 +1,98 @@
 const express = require("express");
 const router = express.Router();
-const axios = require("axios");
 const Appointment = require("../models/Appointment");
 
-const HELTAR_API_KEY = process.env.HELTAR_API_KEY;
+function normalizePhone(rawPhone) {
+  console.log("rawphone before",rawPhone)
+  if (!rawPhone) return "";
+  console.log("rawphone after",rawPhone)
+  let phone = String(rawPhone).replace(/^\+/, "").trim();
+
+  // If starts with "91" and longer than 10 digits, drop country code
+  if (phone.startsWith("91") && phone.length > 10) {
+    phone = phone.slice(2);
+  }
+
+  console.log(phone)
+  return phone;
+}
 
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
+    console.log("🚀 Loaded whatsapp-webhook router at", new Date().toISOString());
+
     console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
 
-    // ✅ WhatsApp payload structure: entry → changes → value → messages
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    const messages = value?.messages || [];
+    const messages = changes?.value?.messages || [];
 
-    for (const msg of messages) {
-      let reply = null;
+    const msg = messages?.[0];
+    if (!msg) {
+      console.log("⚠️ No message found in webhook payload",msg);
+      return res.sendStatus(200);
+    }
 
-      // ✅ Case 1: Button click
-      if (msg.type === "button" && msg.button?.payload) {
-        reply = msg.button.payload.trim().toLowerCase();
-      }
+    console.log(msg)
 
-      // ✅ Case 2: Text reply
-      if (msg.type === "text" && msg.text?.body) {
-        reply = msg.text.body.trim().toLowerCase();
-      }
+    const phone = normalizePhone(msg.from);
+    console.log("☎ Normalized phone:", phone);
 
-      if (!reply) continue;
+    // ✅ Handle button clicks
+    if (msg.type === "button" && msg.button?.payload) {
+      const reply = msg.button.payload.trim().toLowerCase();
+      console.log("🔘 Button reply:", reply);
 
-      // ✅ Normalize phone
-      const phone = msg.from.replace("+", "");
-
-      // ✅ Find latest scheduled appointment for this phone
       const appointment = await Appointment.findOne({
         phone,
         status: "scheduled",
       }).sort({ date: -1 });
 
       if (!appointment) {
-        console.log(`⚠️ No active appointment for ${msg.from}`);
-        continue;
-      }
+        console.log(`⚠️ No active appointment for ${phone}`);
+      } else {
+        if (reply === "yes" || reply === "confirm") {
+          appointment.status = "confirmed";
+        } else if (reply === "no" || reply === "cancel") {
+          appointment.status = "cancelled";
+          appointment.cancelledAt = new Date();
+        }
 
-      // ✅ Update status
-      if (reply === "yes") {
-        appointment.status = "confirmed";
-      } else if (reply === "no") {
-        appointment.status = "cancelled";
-        appointment.cancelledAt = new Date();
+        await appointment.save();
+        console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
       }
+    }
 
-      await appointment.save();
-      console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
+    // ✅ Handle text replies
+    if (msg.type === "text" && msg.text?.body) {
+      const reply = msg.text.body.trim().toLowerCase();
+      console.log("💬 Text reply:", reply);
+
+      const appointment = await Appointment.findOne({
+        phone,
+        status: "scheduled",
+      }).sort({ date: -1 });
+
+      if (!appointment) {
+        console.log(`⚠️ No active appointment for ${phone}`);
+      } else {
+        if (reply === "yes") {
+          appointment.status = "confirmed";
+        } else if (reply === "no") {
+          appointment.status = "cancelled";
+          appointment.cancelledAt = new Date();
+        }
+
+        await appointment.save();
+        console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
+      }
     }
 
     res.sendStatus(200);
   } catch (err) {
-    console.error("❌ Webhook error:", err.message, err.stack);
+    console.error("❌ Webhook error:", err.message);
     res.sendStatus(500);
   }
 });
-
-module.exports = router;
-
-
-
-async function updateAppointmentStatus(appointmentId, action, from) {
-  const appointment = await Appointment.findById(appointmentId);
-  if (!appointment) return;
-
-  if (action === "confirm") appointment.status = "confirmed";
-  else if (action === "cancel") {
-    appointment.status = "cancelled";
-    appointment.cancelledAt = new Date();
-  }
-
-  await appointment.save();
-  console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
-}
-
 
 module.exports = router;
