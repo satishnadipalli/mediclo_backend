@@ -1,3 +1,7 @@
+const express = require("express");
+const router = express.Router();
+const Appointment = require("../models/Appointment");
+
 // normalize any phone to last 10 digits
 function normalizePhone(phone) {
   return phone ? phone.replace(/\D/g, "").slice(-10) : "";
@@ -71,3 +75,5 @@ router.post("/whatsapp-webhook", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
+module.exports = router;
