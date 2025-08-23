@@ -15,34 +15,36 @@ function normalizePhone(rawPhone) {
   return phone;
 }
 
-
-
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
+    console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
+
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const messages = changes?.value?.messages || [];
 
-    console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
+    const msg = messages?.[0];
+    if (!msg) {
+      console.log("⚠️ No message found in webhook payload");
+      return res.sendStatus(200);
+    }
 
-    for (const msg of messages) {
-      const phone = normalizePhone(msg.from);  // 🔥 normalize here
-      console.log("☎ Normalized phone:", phone);
+    const phone = normalizePhone(msg.from);
+    console.log("☎ Normalized phone:", phone);
 
-      // ✅ Handle button clicks
-      if (msg.type === "button" && msg.button?.payload) {
-        const reply = msg.button.payload.trim().toLowerCase();
+    // ✅ Handle button clicks
+    if (msg.type === "button" && msg.button?.payload) {
+      const reply = msg.button.payload.trim().toLowerCase();
+      console.log("🔘 Button reply:", reply);
 
-        const appointment = await Appointment.findOne({
-          phone,
-          status: "scheduled",
-        }).sort({ date: -1 });
+      const appointment = await Appointment.findOne({
+        phone,
+        status: "scheduled",
+      }).sort({ date: -1 });
 
-        if (!appointment) {
-          console.log(`⚠️ No active appointment for ${phone}`);
-          continue;
-        }
-
+      if (!appointment) {
+        console.log(`⚠️ No active appointment for ${phone}`);
+      } else {
         if (reply === "yes" || reply === "confirm") {
           appointment.status = "confirmed";
         } else if (reply === "no" || reply === "cancel") {
@@ -53,21 +55,21 @@ router.post("/whatsapp-webhook", async (req, res) => {
         await appointment.save();
         console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
       }
+    }
 
-      // ✅ Handle text replies ("Yes"/"No")
-      if (msg.type === "text" && msg.text?.body) {
-        const reply = msg.text.body.trim().toLowerCase();
+    // ✅ Handle text replies
+    if (msg.type === "text" && msg.text?.body) {
+      const reply = msg.text.body.trim().toLowerCase();
+      console.log("💬 Text reply:", reply);
 
-        const appointment = await Appointment.findOne({
-          phone,
-          status: "scheduled",
-        }).sort({ date: -1 });
+      const appointment = await Appointment.findOne({
+        phone,
+        status: "scheduled",
+      }).sort({ date: -1 });
 
-        if (!appointment) {
-          console.log(`⚠️ No active appointment for ${phone}`);
-          continue;
-        }
-
+      if (!appointment) {
+        console.log(`⚠️ No active appointment for ${phone}`);
+      } else {
         if (reply === "yes") {
           appointment.status = "confirmed";
         } else if (reply === "no") {
@@ -87,10 +89,4 @@ router.post("/whatsapp-webhook", async (req, res) => {
   }
 });
 
-
 module.exports = router;
-
-
-// const id = 917993724192
-
-// console.log(normalizePhone(id))
