@@ -2,10 +2,21 @@ const express = require("express");
 const router = express.Router();
 const Appointment = require("../models/Appointment");
 
-// normalize any phone to last 10 digits
-function normalizePhone(phone) {
-  return phone ? phone.replace(/\D/g, "").slice(-10) : "";
+function normalizePhone(rawPhone) {
+  if (!rawPhone) return ""; // handle null/undefined safely
+
+  // force to string
+  let phone = String(rawPhone).replace(/^\+/, "");
+
+  // if starts with 91 and length > 10, drop it
+  if (phone.startsWith("91") && phone.length > 10) {
+    phone = phone.slice(2);
+  }
+
+  return phone.trim();
 }
+
+
 
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
@@ -77,3 +88,8 @@ router.post("/whatsapp-webhook", async (req, res) => {
 });
 
 module.exports = router;
+
+
+// const id = 917993724192
+
+// console.log(normalizePhone(id))
