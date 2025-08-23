@@ -1,15 +1,12 @@
-const express = require("express");
-const router = express.Router();
-const axios = require("axios");
-const Appointment = require("../models/Appointment");
-
-const HELTAR_API_KEY = process.env.HELTAR_API_KEY;
-
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
-    const messages = req.body.messages || [];
+    // ✅ WhatsApp (Meta/Heltar) payload structure:
+    // req.body.entry[0].changes[0].value.messages
+    const messages =
+      req.body.entry?.[0]?.changes?.[0]?.value?.messages || [];
+
     console.log("📩 Incoming messages:", JSON.stringify(messages, null, 2));
-    console.log(req?.body,"request body message")
+    console.log("📦 FULL request body:", JSON.stringify(req.body, null, 2));
 
     for (const msg of messages) {
       // ✅ Handle button clicks
@@ -22,12 +19,14 @@ router.post("/whatsapp-webhook", async (req, res) => {
       if (msg.type === "text" && msg.text?.body) {
         const reply = msg.text.body.trim().toLowerCase();
 
-        // ⚠️ You need to know which appointment this reply belongs to
-        // (e.g., by mapping msg.from → latest scheduled appointment)
+        // Normalize phone → last 10 digits to match DB
+        let incomingPhone = msg.from.replace("+", ""); // 919993724192
+        incomingPhone = incomingPhone.slice(-10);      // 7993724192
+
         const appointment = await Appointment.findOne({
-          phone: msg.from.replace("+", ""), // normalize number
+          phone: incomingPhone,
           status: "scheduled",
-        }).sort({ date: -1 }); // latest appointment
+        }).sort({ date: -1 });
 
         if (!appointment) {
           console.log(`⚠️ No active appointment for ${msg.from}`);
@@ -52,20 +51,3 @@ router.post("/whatsapp-webhook", async (req, res) => {
     res.sendStatus(500);
   }
 });
-
-async function updateAppointmentStatus(appointmentId, action, from) {
-  const appointment = await Appointment.findById(appointmentId);
-  if (!appointment) return;
-
-  if (action === "confirm") appointment.status = "confirmed";
-  else if (action === "cancel") {
-    appointment.status = "cancelled";
-    appointment.cancelledAt = new Date();
-  }
-
-  await appointment.save();
-  console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
-}
-
-
-module.exports = router;
