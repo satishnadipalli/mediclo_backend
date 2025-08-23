@@ -19,7 +19,8 @@ function normalizePhone(rawPhone) {
 
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
-    console.log("Hello namaste iam working here")
+    console.log("🚀 Loaded whatsapp-webhook router at", new Date().toISOString());
+
     console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
 
     const entry = req.body.entry?.[0];
