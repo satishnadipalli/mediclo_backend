@@ -85,8 +85,8 @@ startOverdueUpdateJob();
 startRenewalReminderJob();
 
 
-sendReminders();
-checkReplies();
+// sendReminders();
+// checkReplies();
 const app = express();
 
 // Body parser with increased limits for handling file uploads
