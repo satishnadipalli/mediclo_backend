@@ -9,6 +9,7 @@ router.post("/whatsapp-webhook", async (req, res) => {
   try {
     const messages = req.body.messages || [];
     console.log("📩 Incoming messages:", JSON.stringify(messages, null, 2));
+    console.log(req?.body,"request body message")
 
     for (const msg of messages) {
       // ✅ Handle button clicks
