@@ -11,11 +11,7 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 })
 
-/**
- * @desc    Create payment order for subscription
- * @route   POST /api/payments/subscription
- * @access  Private
- */
+
 exports.createSubscriptionPayment = async (req, res) => {
   try {
     console.log("💳 Creating payment order...")
