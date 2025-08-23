@@ -5,21 +5,25 @@ const Appointment = require("../models/Appointment");
 
 const HELTAR_API_KEY = process.env.HELTAR_API_KEY;
 
-// ✅ Main webhook route
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
-    const messages = req.body.messages || [];
-    console.log("📩 Incoming messages:", JSON.stringify(messages, null, 2));
+    console.log("📩 Full incoming payload:", JSON.stringify(req.body, null, 2));
+
+    // ✅ WhatsApp payload structure: entry → changes → value → messages
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    const messages = value?.messages || [];
 
     for (const msg of messages) {
       let reply = null;
 
-      // ✅ Case 1: Button click (payload "Yes" / "No")
+      // ✅ Case 1: Button click
       if (msg.type === "button" && msg.button?.payload) {
         reply = msg.button.payload.trim().toLowerCase();
       }
 
-      // ✅ Case 2: Text reply ("Yes" / "No")
+      // ✅ Case 2: Text reply
       if (msg.type === "text" && msg.text?.body) {
         reply = msg.text.body.trim().toLowerCase();
       }
@@ -40,7 +44,7 @@ router.post("/whatsapp-webhook", async (req, res) => {
         continue;
       }
 
-      // ✅ Update status based on reply
+      // ✅ Update status
       if (reply === "yes") {
         appointment.status = "confirmed";
       } else if (reply === "no") {
@@ -54,12 +58,13 @@ router.post("/whatsapp-webhook", async (req, res) => {
 
     res.sendStatus(200);
   } catch (err) {
-    console.error("❌ Webhook error:", err.message);
+    console.error("❌ Webhook error:", err.message, err.stack);
     res.sendStatus(500);
   }
 });
 
 module.exports = router;
+
 
 
 async function updateAppointmentStatus(appointmentId, action, from) {
