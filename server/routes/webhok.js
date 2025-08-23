@@ -1,3 +1,10 @@
+const express = require("express");
+const router = express.Router();
+const axios = require("axios");
+const Appointment = require("../models/Appointment");
+
+const HELTAR_API_KEY = process.env.HELTAR_API_KEY;
+
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
     // ✅ WhatsApp (Meta/Heltar) payload structure:
@@ -51,3 +58,20 @@ router.post("/whatsapp-webhook", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
+async function updateAppointmentStatus(appointmentId, action, from) {
+  const appointment = await Appointment.findById(appointmentId);
+  if (!appointment) return;
+
+  if (action === "confirm") appointment.status = "confirmed";
+  else if (action === "cancel") {
+    appointment.status = "cancelled";
+    appointment.cancelledAt = new Date();
+  }
+
+  await appointment.save();
+  console.log(`📌 Appointment ${appointment._id} updated to ${appointment.status}`);
+}
+
+
+module.exports = router;
