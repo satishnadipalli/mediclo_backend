@@ -7,31 +7,26 @@ const HELTAR_API_KEY = process.env.HELTAR_API_KEY;
 
 router.post("/whatsapp-webhook", async (req, res) => {
   try {
-    // ✅ WhatsApp (Meta/Heltar) payload structure:
-    // req.body.entry[0].changes[0].value.messages
-    const messages =
-      req.body.entry?.[0]?.changes?.[0]?.value?.messages || [];
-
+    // Meta payload format: entry[0].changes[0].value.messages
+    const messages = req.body?.entry?.[0]?.changes?.[0]?.value?.messages || [];
     console.log("📩 Incoming messages:", JSON.stringify(messages, null, 2));
-    console.log("📦 FULL request body:", JSON.stringify(req.body, null, 2));
 
     for (const msg of messages) {
-      // ✅ Handle button clicks
+      // Handle button clicks
       if (msg.type === "button" && msg.button?.payload) {
         const [action, appointmentId] = msg.button.payload.split("-");
         await updateAppointmentStatus(appointmentId, action, msg.from);
       }
 
-      // ✅ Handle plain text replies ("Yes"/"No")
+      // Handle plain text replies ("Yes"/"No")
       if (msg.type === "text" && msg.text?.body) {
         const reply = msg.text.body.trim().toLowerCase();
 
-        // Normalize phone → last 10 digits to match DB
-        let incomingPhone = msg.from.replace("+", ""); // 919993724192
-        incomingPhone = incomingPhone.slice(-10);      // 7993724192
+        // Normalize phone number
+        const normalizedPhone = msg.from.slice(-10);
 
         const appointment = await Appointment.findOne({
-          phone: incomingPhone,
+          phone: normalizedPhone,
           status: "scheduled",
         }).sort({ date: -1 });
 
@@ -58,6 +53,7 @@ router.post("/whatsapp-webhook", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
 
 async function updateAppointmentStatus(appointmentId, action, from) {
   const appointment = await Appointment.findById(appointmentId);
