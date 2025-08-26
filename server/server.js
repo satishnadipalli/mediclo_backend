@@ -121,7 +121,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Rate limiting
+// Rate limitingse
 // const limiter = rateLimit({
 //   windowMs: 10 * 60 * 1000, // 10 mins
 //   max: 100,
@@ -189,7 +189,7 @@ app.get("/", (req, res) => {
 // Error handler
 app.use(errorHandler);
 
-const PORT = 5000;
+const PORT = 5001;
 
 const server = app.listen(
   PORT,
