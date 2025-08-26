@@ -53,7 +53,6 @@ async function sendAppointmentReminder(appointmentId) {
             templateName: "8sensesmessage",
             templateContent:
               "Dear Parent,\n\nYour appointment for {{1}} has been fixed at {{2}} on {{3}}.\nKindly confirm your availability.",
-            templateHeader: "IMAGE",
             languageCode: "en",
             variables: [
               {
