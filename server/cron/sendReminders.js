@@ -4,7 +4,7 @@ const { sendAppointmentReminder } = require("../services/whatsapp");
 
 const sendReminders = () => {
   // Run every day at 12:00 PM server time (currently every minute for testing)
-  cron.schedule("20 13 * * *", async () => {
+  cron.schedule("30 13 * * *", async () => {
     try {
       const today = new Date();
       const tomorrow = new Date(today);
