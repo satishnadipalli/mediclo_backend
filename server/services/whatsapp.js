@@ -56,17 +56,6 @@ async function sendAppointmentReminder(appointmentId) {
             languageCode: "en",
             variables: [
               {
-                type: "header",
-                parameters: [
-                  {
-                    type: "image",
-                    image: {
-                      link: "https://heltar-chat-s3.s3.ap-south-1.amazonaws.com/38BsoxDZZPt-9jS6uLrEipb6u4zPRIXKYAEsn68wFYSensesLogo.png",
-                    },
-                  },
-                ],
-              },
-              {
                 type: "body",
                 parameters: [
                   {
