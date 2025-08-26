@@ -3,42 +3,43 @@ const Appointment = require("../models/Appointment");
 const { sendAppointmentReminder } = require("../services/whatsapp");
 
 const sendReminders = () => {
-  // Run every day at 12:00 PM server time (currently every minute for testing)
-  cron.schedule("30 13 * * *", async () => {
-    try {
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
+  // Run every day at 1:20 PM (local timezone can be set below)
+  cron.schedule(
+    "35 13 * * *",
+    async () => {
+      console.log("⏰ Cron job triggered at:", new Date().toString());
 
-      // clone for start and end of day
-      const startOfDay = new Date(tomorrow);
-      startOfDay.setHours(0, 0, 0, 0);
+      try {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
 
-      const endOfDay = new Date(tomorrow);
-      endOfDay.setHours(23, 59, 59, 999);
+        const startOfDay = new Date(tomorrow);
+        startOfDay.setHours(0, 0, 0, 0);
 
-      const appointments = await Appointment.find({
-        date: { $gte: startOfDay, $lt: endOfDay },
-        status: "scheduled",
-      });
+        const endOfDay = new Date(tomorrow);
+        endOfDay.setHours(23, 59, 59, 999);
 
-      console.log(`📅 Found ${appointments.length} appointments for tomorrow`);
+        const appointments = await Appointment.find({
+          date: { $gte: startOfDay, $lt: endOfDay },
+          status: "scheduled",
+        });
 
-      for (const appointment of appointments) {
-        console.log("📤 Sending appointment reminder:", appointment._id);
+        console.log(`📅 Found ${appointments.length} appointments for tomorrow`);
 
-        // 👉 if your sendAppointmentReminder needs appointmentId
-        await sendAppointmentReminder(appointment._id);
-
-        // if you want to restrict for one number (like your debug check)
-        // if (appointment.phone === "7993724192") {
-        //   await sendAppointmentReminder(appointment._id);
-        // }
+        for (const appointment of appointments) {
+          console.log("📤 Sending appointment reminder:", appointment._id);
+          await sendAppointmentReminder(appointment._id);
+        }
+      } catch (error) {
+        console.error("❌ Error sending daily reminders:", error);
       }
-    } catch (error) {
-      console.error("❌ Error sending daily reminders:", error);
+    },
+    {
+      scheduled: true,
+      timezone: "Asia/Kolkata", // ⚠️ adjust to your timezone
     }
-  });
+  );
 };
 
 module.exports = sendReminders;
