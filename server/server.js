@@ -189,7 +189,7 @@ app.get("/", (req, res) => {
 // Error handler
 app.use(errorHandler);
 
-const PORT = 5001;
+const PORT = 5000;
 
 const server = app.listen(
   PORT,
