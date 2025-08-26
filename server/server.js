@@ -85,7 +85,7 @@ startOverdueUpdateJob();
 startRenewalReminderJob();
 
 
-// sendReminders();
+sendReminders();
 checkReplies();
 const app = express();
 
