@@ -5,7 +5,7 @@ const { sendAppointmentReminder } = require("../services/whatsapp");
 const sendReminders = () => {
   // Run every day at 1:20 PM (local timezone can be set below)
   cron.schedule(
-    "50 13 * * *",
+    "0 12 * * *",
     async () => {
       console.log("⏰ Cron job triggered at:", new Date().toString());
 
@@ -33,8 +33,7 @@ const sendReminders = () => {
           // ✅ Skip if already reminded today
           if (
             appointment.lastReminderSent &&
-            appointment.lastReminderSent.toDateString() ===
-              new Date().toDateString()
+            appointment.lastReminderSent.toDateString() === new Date().toDateString()
           ) {
             console.log(
               `⚠️ Reminder already sent today for ${appointment._id}, skipping`
