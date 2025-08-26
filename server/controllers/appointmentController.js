@@ -8,6 +8,7 @@ const sendEmail = require("../utils/mailer")
 const appointmentConfirmation = require("../emails/appointmentConfirmation")
 const appointmentReschedule = require("../emails/appointmentReschedule")
 const mongoose = require('mongoose')
+const { sendAppointmentReminder } = require("../services/whatsapp")
 // =======================
 // VALIDATIONS
 // =======================
@@ -214,8 +215,10 @@ exports.convertRequestToAppointment = async (req, res) => {
 // @route   POST /api/appointments
 // @access  Private (Admin, Receptionist)
 exports.createAppointment = async (req, res) => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() })
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
 
   try {
     const {
@@ -237,26 +240,26 @@ exports.createAppointment = async (req, res) => {
       consultationMode,
       consent,
       totalSessions,
-    } = req.body
+    } = req.body;
 
     // Validate service
-    const service = await Service.findById(serviceId)
+    const service = await Service.findById(serviceId);
     if (!service) {
-      return res.status(404).json({ success: false, error: "Service not found!" })
+      return res.status(404).json({ success: false, error: "Service not found!" });
     }
 
     // Validate therapist
-    const therapist = await User.findById(therapistId)
+    const therapist = await User.findById(therapistId);
     if (!therapist || therapist.role !== "therapist") {
-      return res.status(404).json({ success: false, error: "Therapist not found!" })
+      return res.status(404).json({ success: false, error: "Therapist not found!" });
     }
 
     // Determine patient
-    let patient
+    let patient;
     if (patientId) {
-      patient = await Patient.findById(patientId)
+      patient = await Patient.findById(patientId);
       if (!patient) {
-        return res.status(404).json({ success: false, error: "Patient not found!" })
+        return res.status(404).json({ success: false, error: "Patient not found!" });
       }
     } else {
       patient = await Patient.create({
@@ -267,9 +270,10 @@ exports.createAppointment = async (req, res) => {
           email: email,
           relationship: "Father",
         },
-      })
+      });
     }
 
+    // Create appointment
     const appointment = await Appointment.create({
       userId: req?.user?._id,
       patientId: patient?._id,
@@ -296,38 +300,49 @@ exports.createAppointment = async (req, res) => {
       status: "scheduled",
       assignedBy: req?.user?._id,
       assignedAt: new Date(),
-    })
+    });
 
-    //Send confirmation email
+    // -------------------------
+    // 📌 Extra logic for reminders
+    // -------------------------
     try {
-      await sendEmail({
-        to: email,
-        subject: "Your Appointment Confirmation",
-        html: appointmentConfirmation({
-          name: patientName || fatherName || "User",
-          service: service.name,
-          date,
-          startTime,
-          endTime,
-          therapist: therapist.fullName,
-          consultationMode,
-        }),
-      })
-      console.log("Confirmation email sent to:", email)
-    } catch (emailErr) {
-      console.error("Failed to send confirmation email:", emailErr.message)
+      const now = new Date();
+      const apptDate = new Date(date); // date from body (expected ISO string or yyyy-mm-dd)
+
+      // Normalize to only date
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      // Condition: If appointment is tomorrow & current time > 12 PM today
+      const isTomorrow =
+        apptDate.getFullYear() === tomorrow.getFullYear() &&
+        apptDate.getMonth() === tomorrow.getMonth() &&
+        apptDate.getDate() === tomorrow.getDate();
+
+      const isAfterNoon = now.getHours() >= 12;
+
+      if (isTomorrow && isAfterNoon) {
+        console.log("⏰ Sending immediate reminder since it's after 12PM today for tomorrow’s appointment");
+        await sendReminder(appointment._id); // pass appointment ID
+      }
+    } catch (error) {
+      console.error("⚠️ Reminder send logic failed:", error.message);
     }
 
     return res.status(201).json({
       success: true,
       message: "Appointment created successfully",
       data: appointment,
-    })
+    });
   } catch (err) {
-    console.error("Create appointment error:", err)
-    res.status(500).json({ success: false, error: "Server Error" })
+    console.error("Create appointment error:", err);
+    res.status(500).json({ success: false, error: "Server Error" });
   }
-}
+};
+
 
 // =======================
 // FORMAL APPOINTMENT MANAGEMENT
