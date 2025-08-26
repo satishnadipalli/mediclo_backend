@@ -8,7 +8,8 @@ const sendEmail = require("../utils/mailer")
 const appointmentConfirmation = require("../emails/appointmentConfirmation")
 const appointmentReschedule = require("../emails/appointmentReschedule")
 const mongoose = require('mongoose')
-const { sendAppointmentReminder } = require("../services/whatsapp")
+const { sendAppointmentReminder } = require("../services/whatsapp");
+// const { sendAppointmentReminder } = require("../services/whatsapp")
 // =======================
 // VALIDATIONS
 // =======================
@@ -305,6 +306,8 @@ exports.createAppointment = async (req, res) => {
     // -------------------------
     // 📌 Extra logic for reminders
     // -------------------------
+
+
     try {
       const now = new Date();
       const apptDate = new Date(date); // date from body (expected ISO string or yyyy-mm-dd)
@@ -324,9 +327,11 @@ exports.createAppointment = async (req, res) => {
 
       const isAfterNoon = now.getHours() >= 12;
 
+      console.log("helllo iam wroking ")
       if (isTomorrow && isAfterNoon) {
+
         console.log("⏰ Sending immediate reminder since it's after 12PM today for tomorrow’s appointment");
-        await sendReminder(appointment._id); // pass appointment ID
+        await sendAppointmentReminder(appointment._id); // pass appointment ID
       }
     } catch (error) {
       console.error("⚠️ Reminder send logic failed:", error.message);
@@ -1564,6 +1569,8 @@ exports.updateAppointmentStatus = async (req, res) => {
 }
 
 // Enhanced createMultipleAppointments with proper scheduling flow
+
+// Enhanced createMultipleAppointments with proper scheduling flow
 exports.createMultipleAppointments = async (req, res) => {
   try {
     console.log("=== CREATE MULTIPLE APPOINTMENTS START ===")
@@ -1576,10 +1583,10 @@ exports.createMultipleAppointments = async (req, res) => {
       phone,
       serviceId,
       therapistId,
-      dates, // Legacy support
-      scheduledAppointments, // New enhanced scheduling data
-      startTime, // Legacy single appointment time
-      endTime, // Legacy single appointment time
+      dates,
+      scheduledAppointments,
+      startTime,
+      endTime,
       type,
       notes,
       address,
@@ -1590,129 +1597,70 @@ exports.createMultipleAppointments = async (req, res) => {
       totalSessions,
     } = req.body
 
-    // Helper function to convert time string to minutes for proper comparison
+    // Helper function to convert time string to minutes
     const timeToMinutes = (timeStr) => {
-      const [time, period] = timeStr.split(' ')
-      const [hours, minutes] = time.split(':').map(Number)
+      const [time, period] = timeStr.split(" ")
+      const [hours, minutes] = time.split(":").map(Number)
       let totalMinutes = hours * 60 + minutes
-      
-      if (period === 'PM' && hours !== 12) totalMinutes += 12 * 60
-      if (period === 'AM' && hours === 12) totalMinutes -= 12 * 60
-      
+
+      if (period === "PM" && hours !== 12) totalMinutes += 12 * 60
+      if (period === "AM" && hours === 12) totalMinutes -= 12 * 60
+
       return totalMinutes
     }
 
-    // Enhanced appointment data processing with detailed logging
+    // Enhanced appointment data processing
     let appointmentsToCreate = []
-    console.log("Checking scheduledAppointments:", scheduledAppointments)
-    console.log("Checking dates:", dates)
-    console.log("Checking startTime/endTime:", startTime, endTime)
-
     if (scheduledAppointments && Array.isArray(scheduledAppointments) && scheduledAppointments.length > 0) {
-      console.log("Processing scheduledAppointments format...")
-      appointmentsToCreate = scheduledAppointments.map((appointment, index) => {
-        console.log(`Processing appointment ${index}:`, appointment)
-        const processedAppointment = {
-          date: appointment.date,
-          startTime: appointment.startTime,
-          endTime: appointment.endTime,
-        }
-        console.log(`Processed appointment ${index}:`, processedAppointment)
-        return processedAppointment
-      })
-      console.log("Final appointmentsToCreate from scheduledAppointments:", appointmentsToCreate)
+      appointmentsToCreate = scheduledAppointments.map((appointment) => ({
+        date: appointment.date,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+      }))
     } else if (dates && Array.isArray(dates) && dates.length > 0 && startTime && endTime) {
-      console.log("Processing legacy dates format...")
       appointmentsToCreate = dates.map((date) => ({
         date,
         startTime,
         endTime,
       }))
-      console.log("Final appointmentsToCreate from dates:", appointmentsToCreate)
     } else {
-      console.log("No valid appointment data found")
       return res.status(400).json({
         success: false,
         error:
           "Invalid appointment data. Please provide either 'scheduledAppointments' with individual times or 'dates' with 'startTime' and 'endTime'",
-        receivedData: {
-          scheduledAppointments: scheduledAppointments,
-          dates: dates,
-          startTime: startTime,
-          endTime: endTime,
-        },
       })
     }
 
-    // Validate that all appointments have required time fields
-    console.log("Validating appointments...")
-    const invalidAppointments = appointmentsToCreate.filter((apt, index) => {
-      const isValid = apt.startTime && apt.endTime && apt.date
-      console.log(`Appointment ${index} validation:`, {
-        appointment: apt,
-        isValid: isValid,
-        hasStartTime: !!apt.startTime,
-        hasEndTime: !!apt.endTime,
-        hasDate: !!apt.date,
-      })
-      return !isValid
-    })
-
+    // Validate appointments
+    const invalidAppointments = appointmentsToCreate.filter((apt) => !(apt.startTime && apt.endTime && apt.date))
     if (invalidAppointments.length > 0) {
-      console.log("Invalid appointments found:", invalidAppointments)
       return res.status(400).json({
         success: false,
         error: "All appointments must have date, startTime and endTime specified",
         invalidAppointments,
-        allAppointments: appointmentsToCreate,
-      })
-    }
-
-    // Validate required fields
-    if (!appointmentsToCreate || appointmentsToCreate.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "At least one appointment schedule is required",
       })
     }
 
     // Validate service
-    console.log("Validating service:", serviceId)
     const service = await Service.findById(serviceId)
     if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Service not found!",
-      })
+      return res.status(404).json({ success: false, error: "Service not found!" })
     }
-    console.log("Service found:", service.name)
 
     // Validate therapist
-    console.log("Validating therapist:", therapistId)
     const therapist = await User.findById(therapistId)
     if (!therapist || therapist.role !== "therapist") {
-      return res.status(404).json({
-        success: false,
-        error: "Therapist not found!",
-      })
+      return res.status(404).json({ success: false, error: "Therapist not found!" })
     }
-    console.log("Therapist found:", therapist.firstName, therapist.lastName)
 
     // Determine patient
     let patient
     if (patientId) {
-      console.log("Finding existing patient:", patientId)
       patient = await Patient.findById(patientId)
       if (!patient) {
-        return res.status(404).json({
-          success: false,
-          error: "Patient not found!",
-        })
+        return res.status(404).json({ success: false, error: "Patient not found!" })
       }
-      console.log("Existing patient found:", patient.fullName)
     } else {
-      console.log("Creating new patient...")
-      // Create new patient if not exists
       patient = await Patient.create({
         fullName: patientName,
         parentInfo: {
@@ -1722,101 +1670,52 @@ exports.createMultipleAppointments = async (req, res) => {
           relationship: "Father",
         },
       })
-      console.log("New patient created:", patient.fullName)
     }
 
-    // FIXED: Enhanced conflict checking with proper time comparison
-    console.log("Checking for conflicts...")
-    
-    // Define inactive statuses that should NOT cause conflicts
+    // Conflict checking
     const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"]
-    
-    const conflictPromises = appointmentsToCreate.map(async (appointment, index) => {
-      console.log(`Checking conflicts for appointment ${index}:`, appointment)
+    const conflictPromises = appointmentsToCreate.map(async (appointment) => {
       const appointmentDate = new Date(appointment.date)
       const newStartMinutes = timeToMinutes(appointment.startTime)
       const newEndMinutes = timeToMinutes(appointment.endTime)
 
-      console.log(`New appointment time in minutes: ${newStartMinutes} - ${newEndMinutes} (${appointment.startTime} - ${appointment.endTime})`)
-
-      // Get all active appointments for this therapist on this date
       const activeAppointments = await Appointment.find({
         therapistId: therapistId,
         date: appointmentDate,
-        status: { $nin: INACTIVE_STATUSES }
-      }).select("_id startTime endTime status patientName")
+        status: { $nin: INACTIVE_STATUSES },
+      }).select("_id startTime endTime status")
 
-      console.log(`Active appointments on ${appointmentDate.toISOString().split("T")[0]}:`, 
-        activeAppointments.map(apt => {
-          const existingStartMinutes = timeToMinutes(apt.startTime)
-          const existingEndMinutes = timeToMinutes(apt.endTime)
-          return {
-            id: apt._id,
-            time: `${apt.startTime} - ${apt.endTime}`,
-            timeInMinutes: `${existingStartMinutes} - ${existingEndMinutes}`,
-            status: apt.status,
-            patient: apt.patientName
-          }
-        })
-      )
-
-      // Check for conflicts using proper time comparison
-      let conflictingAppointment = null
       for (const existing of activeAppointments) {
         const existingStartMinutes = timeToMinutes(existing.startTime)
         const existingEndMinutes = timeToMinutes(existing.endTime)
 
-        // Check if times overlap
-        const hasOverlap = (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes)
-        
-        console.log(`Checking overlap with ${existing._id}:`, {
-          existing: `${existingStartMinutes}-${existingEndMinutes} (${existing.startTime}-${existing.endTime})`,
-          new: `${newStartMinutes}-${newEndMinutes} (${appointment.startTime}-${appointment.endTime})`,
-          hasOverlap: hasOverlap
-        })
-
+        const hasOverlap = newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes
         if (hasOverlap) {
-          conflictingAppointment = existing
-          break
+          return {
+            hasConflict: true,
+            date: appointmentDate.toISOString().split("T")[0],
+            time: appointment.startTime,
+            conflictingAppointment: existing._id,
+          }
         }
       }
 
-      if (conflictingAppointment) {
-        console.log(`Conflict found for appointment ${index}:`, {
-          conflictingId: conflictingAppointment._id,
-          conflictingStatus: conflictingAppointment.status,
-          conflictingTime: `${conflictingAppointment.startTime} - ${conflictingAppointment.endTime}`,
-          conflictingPatient: conflictingAppointment.patientName
-        })
-        return {
-          hasConflict: true,
-          date: appointmentDate.toISOString().split("T")[0],
-          time: appointment.startTime,
-          conflictingAppointment: conflictingAppointment._id,
-        }
-      }
-      
-      console.log(`No conflict found for appointment ${index}`)
       return { hasConflict: false }
     })
 
     const conflictResults = await Promise.all(conflictPromises)
     const conflicts = conflictResults.filter((result) => result.hasConflict)
-
     if (conflicts.length > 0) {
       const conflictDetails = conflicts.map((c) => `${c.date} at ${c.time}`).join(", ")
-      console.log("Conflicts found:", conflictDetails)
       return res.status(400).json({
         success: false,
         error: `Therapist already has appointments on: ${conflictDetails}`,
-        conflicts: conflicts,
+        conflicts,
       })
     }
 
-    console.log("No conflicts found. Creating appointments...")
-
-    // Create appointments for all scheduled slots
-    const appointmentPromises = appointmentsToCreate.map((appointment, index) => {
+    // Create appointments
+    const appointmentPromises = appointmentsToCreate.map((appointment) => {
       const appointmentData = {
         userId: req?.user?._id,
         patientId: patient?._id,
@@ -1844,54 +1743,35 @@ exports.createMultipleAppointments = async (req, res) => {
         assignedBy: req?.user?._id,
         assignedAt: new Date(),
       }
-
-      console.log(`Creating appointment ${index} with data:`, JSON.stringify(appointmentData, null, 2))
-
-      // Validate the appointment data before creating
-      if (!appointmentData.startTime || !appointmentData.endTime) {
-        console.error(`Appointment ${index} missing time data:`, {
-          startTime: appointmentData.startTime,
-          endTime: appointmentData.endTime,
-          originalAppointment: appointment,
-        })
-        throw new Error(`Appointment ${index} is missing startTime or endTime`)
-      }
-
       return Appointment.create(appointmentData)
     })
 
     const createdAppointments = await Promise.all(appointmentPromises)
     console.log("Successfully created appointments:", createdAppointments.length)
 
-    // Send confirmation email for all appointments
+    // ✅ NEW: Send WhatsApp reminders if created after 12PM for tomorrow
     try {
-      const appointmentDetails = appointmentsToCreate
-        .map((apt) => {
-          const date = new Date(apt.date).toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          })
-          return `${date} at ${apt.startTime}`
-        })
-        .join(", ")
+      const now = new Date()
+      const isAfterNoon = now.getHours() >= 12
 
-      await sendEmail({
-        to: email,
-        subject: "Your Multiple Appointments Confirmation",
-        html: appointmentConfirmation({
-          name: patientName || fatherName || "User",
-          service: service.name,
-          dates: appointmentDetails,
-          therapist: `Dr. ${therapist.firstName} ${therapist.lastName}`,
-          consultationMode: consultationMode || "in-person",
-          appointmentCount: appointmentsToCreate.length,
-          isMultiple: true,
-        }),
-      })
-      console.log("Multiple appointments confirmation email sent to:", email)
-    } catch (emailErr) {
-      console.error("Failed to send confirmation email:", emailErr.message)
+      for (const appointment of createdAppointments) {
+        const apptDate = new Date(appointment.date)
+        const tomorrow = new Date()
+        tomorrow.setDate(now.getDate() + 1)
+        tomorrow.setHours(0, 0, 0, 0)
+
+        const isTomorrow =
+          apptDate.getFullYear() === tomorrow.getFullYear() &&
+          apptDate.getMonth() === tomorrow.getMonth() &&
+          apptDate.getDate() === tomorrow.getDate()
+
+        if (isTomorrow && isAfterNoon) {
+          console.log(`⏰ Immediate WhatsApp reminder for appointment ${appointment._id}`)
+          await sendAppointmentReminder(appointment._id)
+        }
+      }
+    } catch (reminderErr) {
+      console.error("⚠️ Failed to send immediate WhatsApp reminder:", reminderErr.message)
     }
 
     console.log("=== CREATE MULTIPLE APPOINTMENTS SUCCESS ===")
@@ -1916,7 +1796,6 @@ exports.createMultipleAppointments = async (req, res) => {
   } catch (err) {
     console.error("=== CREATE MULTIPLE APPOINTMENTS ERROR ===")
     console.error("Error details:", err)
-    console.error("Error stack:", err.stack)
     res.status(500).json({
       success: false,
       error: "Server Error",
@@ -1924,6 +1803,7 @@ exports.createMultipleAppointments = async (req, res) => {
     })
   }
 }
+
 // Update the existing updateAppointment function to handle bulk payment updates
 exports.updatePatientAppointmentsPayment = async (req, res) => {
   try {
