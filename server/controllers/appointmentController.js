@@ -1708,6 +1708,7 @@ exports.createMultipleAppointments = async (req, res) => {
       totalSessions,
     } = req.body;
 
+
     // Helper function to convert time string to minutes
     const timeToMinutes = (timeStr) => {
       const [time, period] = timeStr.split(" ");
@@ -2395,32 +2396,20 @@ exports.createGroupAppointment = async (req, res) => {
       consultationMode,
       notes,
       paymentMethod,
+      paymentAmount,
       groupSessionName,
       maxCapacity,
-      patients, // Array of patient objects
+      patients,
     } = req.body;
 
-    console.log("patints", patients);
-    // return;
-
-    // Validate required fields
-    if (
-      !therapistId ||
-      !serviceId ||
-      !date ||
-      !startTime ||
-      !endTime ||
-      !patients ||
-      patients.length === 0
-    ) {
+    if (!therapistId || !serviceId || !date || !startTime || !endTime || !patients?.length) {
       return res.status(400).json({
         success: false,
-        error:
-          "Missing required fields: therapistId, serviceId, date, startTime, endTime, and patients are required",
+        error: "Missing required fields: therapistId, serviceId, date, startTime, endTime, and patients are required",
       });
     }
 
-    if (!groupSessionName || !groupSessionName.trim()) {
+    if (!groupSessionName?.trim()) {
       return res.status(400).json({
         success: false,
         error: "Group session name is required",
@@ -2430,85 +2419,45 @@ exports.createGroupAppointment = async (req, res) => {
     if (patients.length > (maxCapacity || 10)) {
       return res.status(400).json({
         success: false,
-        error: `Maximum ${
-          maxCapacity || 10
-        } patients allowed per group session`,
+        error: `Maximum ${maxCapacity || 10} patients allowed per group session`,
       });
     }
 
-    // Validate service
     const service = await Service.findById(serviceId);
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Service not found!",
-      });
-    }
+    if (!service) return res.status(404).json({ success: false, error: "Service not found!" });
 
-    // Validate therapist
     const therapist = await User.findById(therapistId);
-    if (!therapist || therapist.role !== "therapist") {
-      return res.status(404).json({
-        success: false,
-        error: "Therapist not found!",
-      });
-    }
+    if (!therapist || therapist.role !== "therapist") return res.status(404).json({ success: false, error: "Therapist not found!" });
 
-    // Generate unique group session ID
     const groupSessionId = new mongoose.Types.ObjectId();
-
     console.log("Generated group session ID:", groupSessionId);
 
-    // Check for conflicts with existing NON-GROUP appointments
-    const appointmentDate = new Date(date);
-    const INACTIVE_STATUSES = [
-      "cancelled",
-      "no-show",
-      "completed",
-      "converted",
-    ];
-
-    // Helper function to convert time string to minutes
     const timeToMinutes = (timeStr) => {
       const [time, period] = timeStr.split(" ");
       const [hours, minutes] = time.split(":").map(Number);
       let totalMinutes = hours * 60 + minutes;
-
       if (period === "PM" && hours !== 12) totalMinutes += 12 * 60;
       if (period === "AM" && hours === 12) totalMinutes -= 12 * 60;
-
       return totalMinutes;
     };
 
     const newStartMinutes = timeToMinutes(startTime);
     const newEndMinutes = timeToMinutes(endTime);
+    const appointmentDate = new Date(date);
 
-    // Check for conflicts with existing appointments (excluding group sessions)
+    const INACTIVE_STATUSES = ["cancelled", "no-show", "completed", "converted"];
+
     const conflictingAppointments = await Appointment.find({
-      therapistId: therapistId,
+      therapistId,
       date: appointmentDate,
       status: { $nin: INACTIVE_STATUSES },
-      $or: [
-        { isGroupSession: { $ne: true } }, // Non-group appointments
-        { isGroupSession: { $exists: false } }, // Legacy appointments without group field
-      ],
+      $or: [{ isGroupSession: { $ne: true } }, { isGroupSession: { $exists: false } }],
     });
-
-    console.log(
-      `Found ${conflictingAppointments.length} existing non-group appointments to check`
-    );
 
     for (const existing of conflictingAppointments) {
       const existingStartMinutes = timeToMinutes(existing.startTime);
       const existingEndMinutes = timeToMinutes(existing.endTime);
-
-      // Check if times overlap
-      const hasOverlap =
-        newStartMinutes < existingEndMinutes &&
-        newEndMinutes > existingStartMinutes;
-
-      if (hasOverlap) {
-        console.log(`❌ CONFLICT FOUND with appointment ${existing._id}`);
+      if (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) {
         return res.status(400).json({
           success: false,
           error: `Therapist already has an individual appointment at this time: ${existing.startTime} - ${existing.endTime}`,
@@ -2516,30 +2465,11 @@ exports.createGroupAppointment = async (req, res) => {
       }
     }
 
-    // Check if any of the selected patients already have appointments at this time
     const patientIds = patients.map((p) => p.patientId).filter(Boolean);
-    const patientConflicts = await Appointment.find({
-      patientId: { $in: patientIds },
-      date: appointmentDate,
-      status: { $nin: INACTIVE_STATUSES },
-    });
 
-    // if (patientConflicts.length > 0) {
-
-    //   const conflictingPatients = patientConflicts.map((apt) => apt.patientName).join(", ")
-    //   console.log("confil",conflictingPatients)
-    //   return res.status(400).json({
-    //     success: false,
-    //     error: `The following patients already have appointments at this time: ${conflictingPatients}`,
-    //   })
-    // }
-
-    console.log("✅ No conflicts found. Creating group appointments...");
-
-    // Create individual appointments for each patient in the group
-    const appointmentPromises = patients.map((patient, index) => {
-      const appointmentData = {
-        userId: req?.user?._id,
+    const appointmentPromises = patients.map((patient) => {
+      return Appointment.create({
+        userId: req.user._id,
         patientId: patient.patientId,
         patientName: patient.patientName,
         fatherName: patient.fatherName || "",
@@ -2552,112 +2482,70 @@ exports.createGroupAppointment = async (req, res) => {
         endTime,
         type: type || "group therapy session",
         consultationMode: consultationMode || "in-person",
-        notes: `${
-          notes || ""
-        }\n\nGroup Session: ${groupSessionName}\nParticipants: ${
-          patients.length
-        }/${maxCapacity}`,
+        notes: `${notes || ""}\n\nGroup Session: ${groupSessionName}\nParticipants: ${patients.length}/${maxCapacity}`,
         payment: {
-          amount: service.price || 0,
+          amount: paymentAmount || 0,
           method: paymentMethod || "not_specified",
           status: "pending",
         },
         consent: false,
         totalSessions: 1,
         status: "scheduled",
-        assignedBy: req?.user?._id,
+        assignedBy: req.user._id,
         assignedAt: new Date(),
-        // Group session specific fields
         isGroupSession: true,
-        groupSessionId: groupSessionId,
-        groupSessionName: groupSessionName,
+        groupSessionId,
+        groupSessionName,
         maxCapacity: maxCapacity || 6,
-      };
-
-      console.log(
-        `Creating appointment ${index + 1} for patient: ${patient.patientName}`
-      );
-      return Appointment.create(appointmentData);
+      });
     });
 
     const createdAppointments = await Promise.all(appointmentPromises);
 
-    console.log(createdAppointments, "created appointments");
+    // Send emails and WhatsApp reminders
+    for (const appointment of createdAppointments) {
+      // WhatsApp reminder
+      if (appointment.phone) {
+        const now = new Date();
+        const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+        const istHour = istNow.getHours();
+        const isAfterNoon = istHour >= 12;
 
-    console.log(
-      `✅ Successfully created ${createdAppointments.length} group appointments`
-    );
+        const tomorrow = new Date(istNow);
+        tomorrow.setDate(istNow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const endOfTomorrow = new Date(tomorrow);
+        endOfTomorrow.setHours(23, 59, 59, 999);
 
-    // Send confirmation emails to all patients
-    const emailPromises = createdAppointments.map(async (appointment) => {
-      if (appointment.email) {
-        try {
-          await sendEmail({
-            to: appointment.email,
-            subject: `Group Appointment Confirmation - ${groupSessionName}`,
-            html: appointmentConfirmation({
-              name:
-                appointment.patientName || appointment.fatherName || "Patient",
-              service: service.name,
-              date: appointment.date,
-              startTime: appointment.startTime,
-              endTime: appointment.endTime,
-              therapist: `Dr. ${therapist.firstName} ${therapist.lastName}`,
-              consultationMode: appointment.consultationMode,
-              isGroupSession: true,
-              groupSessionName: groupSessionName,
-              totalParticipants: patients.length,
-            }),
-          });
-          console.log(`Email sent to: ${appointment.email}`);
-        } catch (emailError) {
-          console.error(
-            `Failed to send email to ${appointment.email}:`,
-            emailError.message
+        if (appointmentDate >= tomorrow && appointmentDate <= endOfTomorrow && isAfterNoon) {
+          await sendAppointmentReminder(appointment._id).catch((err) =>
+            console.error("WhatsApp reminder error:", err.message)
           );
         }
       }
-    });
+    }
 
-    await Promise.all(emailPromises);
-
-    console.log("=== CREATE GROUP APPOINTMENT SUCCESS ===");
-
+    console.log(`✅ Successfully created ${createdAppointments.length} group appointments`);
     return res.status(201).json({
       success: true,
       message: `Group appointment "${groupSessionName}" created successfully for ${patients.length} patients`,
       data: {
-        groupSessionId: groupSessionId,
-        groupSessionName: groupSessionName,
+        groupSessionId,
+        groupSessionName,
         appointments: createdAppointments,
         appointmentCount: createdAppointments.length,
         totalCost: service.price * patients.length,
-        therapist: {
-          name: `Dr. ${therapist.firstName} ${therapist.lastName}`,
-          id: therapist._id,
-        },
-        service: {
-          name: service.name,
-          price: service.price,
-        },
-        schedule: {
-          date: appointmentDate,
-          startTime: startTime,
-          endTime: endTime,
-        },
+        therapist: { name: `Dr. ${therapist.firstName} ${therapist.lastName}`, id: therapist._id },
+        service: { name: service.name, price: service.price },
+        schedule: { date: appointmentDate, startTime, endTime },
       },
     });
   } catch (error) {
-    console.error("=== CREATE GROUP APPOINTMENT ERROR ===");
-    console.error("Error details:", error);
-    console.error("Error stack:", error.stack);
-    res.status(500).json({
-      success: false,
-      error: "Server Error",
-      message: error.message,
-    });
+    console.error("=== CREATE GROUP APPOINTMENT ERROR ===", error);
+    res.status(500).json({ success: false, error: "Server Error", message: error.message });
   }
 };
+
 
 // @desc    Get group appointments
 // @route   GET /api/appointments/group
