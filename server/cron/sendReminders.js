@@ -5,7 +5,7 @@ const { sendAppointmentReminder } = require("../services/whatsapp");
 const sendReminders = () => {
   // Run every day at 1:20 PM (local timezone can be set below)
   cron.schedule(
-    "55 11 * * *",
+    "0 12 * * *",
     async () => {
       console.log("⏰ Cron job triggered at:", new Date().toString());
 
