@@ -115,11 +115,21 @@ app.use(hpp());
 
 // Enable CORS
 const corsOptions = {
-  origin: "*", // allow all origins
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: [
+    "http://localhost:3000",               // local CRA
+    "http://127.0.0.1:3000",               // local CRA alt
+    "http://localhost:5173",               // local Vite
+    "http://127.0.0.1:5173",               // local Vite alt
+    "https://mediclo-frontend.vercel.app", // deployed frontend
+    "https://mediclo-hms.vercel.app"       // another deployed frontend
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
 };
 
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // handle preflight
+
 
 // Rate limitingse
 // const limiter = rateLimit({
