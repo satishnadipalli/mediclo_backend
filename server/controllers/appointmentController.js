@@ -358,7 +358,7 @@ exports.createAppointment = async (req, res) => {
         console.log(
           "⏰ Sending immediate reminder since it's after 12PM today for tomorrow’s appointment"
         );
-        await sendAppointmentReminder(appointment._id); // pass appointment ID
+        // await sendAppointmentReminder(appointment._id); 
       }
     } catch (error) {
       console.error("⚠️ Reminder send logic failed:", error.message);
@@ -1930,7 +1930,7 @@ exports.createMultipleAppointments = async (req, res) => {
           console.log(
             `⏰ Immediate WhatsApp reminder for appointment ${appointment._id}`
           );
-          await sendAppointmentReminder(appointment._id);
+          // await sendAppointmentReminder(appointment._id);s
         }
       }
     } catch (reminderErr) {
@@ -2518,9 +2518,9 @@ exports.createGroupAppointment = async (req, res) => {
         endOfTomorrow.setHours(23, 59, 59, 999);
 
         if (appointmentDate >= tomorrow && appointmentDate <= endOfTomorrow && isAfterNoon) {
-          await sendAppointmentReminder(appointment._id).catch((err) =>
-            console.error("WhatsApp reminder error:", err.message)
-          );
+          // await sendAppointmentReminder(appointment._id).catch((err) =>
+          //   console.error("WhatsApp reminder error:", err.message)
+          // );
         }
       }
     }

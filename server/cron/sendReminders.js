@@ -29,26 +29,26 @@ const sendReminders = () => {
           `📅 Found ${appointments.length} appointments for tomorrow`
         );
 
-        for (const appointment of appointments) {
-          // ✅ Skip if already reminded today
-          if (
-            appointment.lastReminderSent &&
-            appointment.lastReminderSent.toDateString() === new Date().toDateString()
-          ) {
-            console.log(
-              `⚠️ Reminder already sent today for ${appointment._id}, skipping`
-            );
-            continue;
-          }
+        // for (const appointment of appointments) {
+        //   // ✅ Skip if already reminded today
+        //   if (
+        //     appointment.lastReminderSent &&
+        //     appointment.lastReminderSent.toDateString() === new Date().toDateString()
+        //   ) {
+        //     console.log(
+        //       `⚠️ Reminder already sent today for ${appointment._id}, skipping`
+        //     );
+        //     continue;
+        //   }
 
-          console.log("📤 Sending appointment reminder:", appointment._id);
-          await sendAppointmentReminder(appointment._id);
+        //   console.log("📤 Sending appointment reminder:", appointment._id);
+        //   await sendAppointmentReminder(appointment._id);
 
-          // ✅ Track reminder
-          appointment.remindersSent = (appointment.remindersSent || 0) + 1;
-          appointment.lastReminderSent = new Date();
-          await appointment.save();
-        }
+        //   // ✅ Track reminder
+        //   appointment.remindersSent = (appointment.remindersSent || 0) + 1;
+        //   appointment.lastReminderSent = new Date();
+        //   await appointment.save();
+        // }
       } catch (error) {
         console.error("❌ Error sending daily reminders:", error);
       }
