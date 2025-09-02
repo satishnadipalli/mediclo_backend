@@ -115,7 +115,7 @@ app.use(hpp());
 
 // Enable CORS
 const corsOptions = {
-  origin: ["http://localhost:3000", "http://localhost:3001"],
+  origin: "*", // allow all origins
   methods: ["GET", "POST", "PUT", "DELETE"],
 };
 
